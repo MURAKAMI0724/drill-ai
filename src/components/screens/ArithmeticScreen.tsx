@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
   generateArithmeticProblem,
-  problemToSpeech,
+  problemToSpeechParts,
   type ArithmeticProblem,
 } from "@/lib/kids/arithmetic";
-import { speak } from "@/lib/kids/speech";
+import { numberToJapaneseWords } from "@/lib/kids/japanese-numbers";
+import { speak, speakParts } from "@/lib/kids/speech";
 
 interface ArithmeticScreenProps {
   speechEnabled: boolean;
@@ -46,9 +47,11 @@ export default function ArithmeticScreen({
   }
 
   // Speaks the problem out loud whenever it changes, including the initial
-  // one from useState's lazy initializer above.
+  // one from useState's lazy initializer above. Split into two utterances
+  // ("3 たす 4" then "は?") with a ~300ms beat so the question mark doesn't
+  // run straight into the numbers.
   useEffect(() => {
-    speak(problemToSpeech(problem), speechEnabledRef.current);
+    speakParts(problemToSpeechParts(problem), speechEnabledRef.current, 300);
   }, [problem]);
 
   function pressDigit(d: string) {
@@ -69,7 +72,9 @@ export default function ArithmeticScreen({
     setTotalCount((n) => n + 1);
     if (correct) setCorrectCount((n) => n + 1);
     speak(
-      correct ? "せいかい!" : `おしい!こたえは ${problem.answer}`,
+      correct
+        ? "せいかい!"
+        : `おしい!こたえは ${numberToJapaneseWords(problem.answer)}`,
       speechEnabledRef.current,
     );
   }

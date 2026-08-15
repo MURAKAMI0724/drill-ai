@@ -1,3 +1,5 @@
+import { numberToJapaneseWords } from "./japanese-numbers";
+
 export interface ArithmeticProblem {
   op: "+" | "-";
   a: number;
@@ -27,7 +29,17 @@ export function generateArithmeticProblem(): ArithmeticProblem {
   return { op, a, b, answer };
 }
 
-export function problemToSpeech(p: ArithmeticProblem): string {
+/**
+ * Split into [expression, "は?"] rather than one string so the caller can
+ * read them as two utterances with a pause in between — "さん たす よん" then
+ * a beat, then "は?" — instead of running the question mark straight into
+ * the numbers. Numbers are spelled out in hiragana (numberToJapaneseWords)
+ * rather than left as bare digits, since some TTS voices read a bare
+ * numeral in English even on a ja-JP utterance.
+ */
+export function problemToSpeechParts(p: ArithmeticProblem): [string, string] {
   const opWord = p.op === "+" ? "たす" : "ひく";
-  return `${p.a} ${opWord} ${p.b} は?`;
+  const a = numberToJapaneseWords(p.a);
+  const b = numberToJapaneseWords(p.b);
+  return [`${a} ${opWord} ${b}`, "は?"];
 }
