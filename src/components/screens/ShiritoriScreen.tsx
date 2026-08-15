@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  KANJI_TO_HIRAGANA,
   SHIRITORI_STARTERS,
   SHIRITORI_WORDS,
 } from "@/lib/kids/shiritori-data";
@@ -12,6 +13,7 @@ import {
   lastKana,
   normalizeKana,
 } from "@/lib/kids/shiritori";
+import { convertToHiraganaViaApi } from "@/lib/kids/kana-convert-client";
 import { cancelSpeech, speak } from "@/lib/kids/speech";
 
 interface ShiritoriScreenProps {
@@ -51,6 +53,7 @@ export default function ShiritoriScreen({
   const [endInfo, setEndInfo] = useState<EndInfo | null>(null);
   const [micListening, setMicListening] = useState(false);
   const [micStatus, setMicStatus] = useState("");
+  const [converting, setConverting] = useState(false);
   const [micSupported] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -249,6 +252,41 @@ export default function ShiritoriScreen({
     setMicListening(false);
   }
 
+  /**
+   * SpeechRecognition often transcribes common nouns with kanji (e.g. "犬"
+   * instead of "いぬ"), which the plain-hiragana dictionary can't match. This
+   * sends the raw transcript to /api/kana-convert (server-side kuromoji) to
+   * get a hiragana reading first. If that call fails or times out, it falls
+   * back to using the transcript as-is when it's already pure hiragana, then
+   * to the small local KANJI_TO_HIRAGANA table, and only asks the child to
+   * repeat themselves if neither works.
+   */
+  async function handleMicTranscript(raw: string) {
+    setConverting(true);
+    const converted = await convertToHiraganaViaApi(raw);
+    setConverting(false);
+    if (gameOverRef.current) return;
+
+    if (converted) {
+      submitWord(converted);
+      return;
+    }
+
+    const stripped = raw.trim().replace(/\s+/g, "").replace(/[。、!?！?]/g, "");
+    if (HIRAGANA_ONLY_RE.test(stripped)) {
+      submitWord(stripped);
+      return;
+    }
+    if (KANJI_TO_HIRAGANA[stripped]) {
+      submitWord(KANJI_TO_HIRAGANA[stripped]);
+      return;
+    }
+
+    const msg = "うまく へんかんできなかったよ。もういちど いってみてね";
+    pushBubble("system", msg);
+    say(msg);
+  }
+
   function startMic() {
     const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!SR) {
@@ -265,7 +303,7 @@ export default function ShiritoriScreen({
     r.onresult = (e) => {
       const transcript = e.results[0][0].transcript;
       setMicListening(false);
-      submitWord(transcript);
+      handleMicTranscript(transcript);
     };
     r.onerror = (e) => {
       setMicListening(false);
@@ -339,8 +377,13 @@ export default function ShiritoriScreen({
         ))}
       </div>
 
-      {needKana && !gameOver && (
+      {needKana && !gameOver && !converting && (
         <div className="text-center text-xs text-fg-faint">{needKana}</div>
+      )}
+      {converting && (
+        <div className="text-center text-xs text-gold">
+          🔄 へんかんちゅう…
+        </div>
       )}
       {micStatus && (
         <div className="text-center text-xs text-critical">{micStatus}</div>
@@ -351,17 +394,19 @@ export default function ShiritoriScreen({
           <input
             type="text"
             value={inputValue}
+            disabled={converting}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="ひらがなで にゅうりょく"
-            className="flex-1 rounded-2xl border-[1.5px] border-border bg-surface-1 px-4 py-3.5 text-base text-fg outline-none focus:border-gold"
+            className="flex-1 rounded-2xl border-[1.5px] border-border bg-surface-1 px-4 py-3.5 text-base text-fg outline-none focus:border-gold disabled:opacity-50"
           />
           {micSupported && (
             <button
               onClick={toggleMic}
+              disabled={converting}
               aria-label={micListening ? "きいています" : "タップして はなす"}
               className={[
-                "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-surface-1 text-lg active:scale-95",
+                "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-surface-1 text-lg active:scale-95 disabled:opacity-50",
                 micListening ? "animate-mic-pulse border-critical" : "",
               ].join(" ")}
             >
@@ -370,7 +415,7 @@ export default function ShiritoriScreen({
           )}
           <button
             onClick={handleSend}
-            disabled={!inputValue.trim()}
+            disabled={!inputValue.trim() || converting}
             className="flex h-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-gold-bright to-[#b8903c] px-4 text-sm font-bold text-[#231803] active:scale-95 disabled:opacity-35"
           >
             おくる
