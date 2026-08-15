@@ -1,69 +1,294 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import TopBar from "@/components/TopBar";
+import FooterTabBar, { type TabKey } from "@/components/FooterTabBar";
+import Toast from "@/components/Toast";
+import PersonaScreen from "@/components/screens/PersonaScreen";
+import IntroScreen from "@/components/screens/IntroScreen";
+import CaptureScreen from "@/components/screens/CaptureScreen";
+import GeneratingScreen from "@/components/screens/GeneratingScreen";
+import QuizIntroScreen from "@/components/screens/QuizIntroScreen";
+import QuizScreen from "@/components/screens/QuizScreen";
+import ResultsScreen from "@/components/screens/ResultsScreen";
+import { PERSONAS } from "@/lib/personas";
+import type {
+  AnswerRecord,
+  GeneratedQuiz,
+  PersonaKey,
+  QuizQuestion,
+} from "@/lib/types";
+
+type Screen =
+  | "persona"
+  | "intro"
+  | "capture"
+  | "generating"
+  | "quiz-intro"
+  | "quiz"
+  | "results";
 
 export default function Home() {
+  const [screen, setScreen] = useState<Screen>("persona");
+  const [, setScreenStack] = useState<Screen[]>([]);
+
+  const [personaKey, setPersonaKey] = useState<PersonaKey>("individual");
+  const [photos, setPhotos] = useState<string[]>([]);
+
+  const [quiz, setQuiz] = useState<GeneratedQuiz | null>(null);
+  const [generationRequestId, setGenerationRequestId] = useState(0);
+  const [generationStatus, setGenerationStatus] = useState<
+    "loading" | "error"
+  >("loading");
+  const [generationError, setGenerationError] = useState<string | null>(
+    null,
+  );
+
+  const [quizQueue, setQuizQueue] = useState<QuizQuestion[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [answers, setAnswers] = useState<AnswerRecord[]>([]);
+  const [hasResults, setHasResults] = useState(false);
+
+  const [toast, setToast] = useState<string | null>(null);
+
+  function showToast(message: string) {
+    setToast(message);
+    setTimeout(() => setToast(null), 2200);
+  }
+
+  function goTo(next: Screen, opts: { push?: boolean } = {}) {
+    const push = opts.push !== false;
+    if (push && screen !== next) {
+      setScreenStack((prev) => [...prev, screen]);
+    }
+    setScreen(next);
+  }
+
+  function goBack() {
+    setScreenStack((prev) => {
+      if (prev.length === 0) return prev;
+      setScreen(prev[prev.length - 1]);
+      return prev.slice(0, -1);
+    });
+  }
+
+  // Generate the quiz whenever we land on the "generating" screen (initial visit or retry).
+  // `generationStatus`/`generationError` are reset by the caller (handleStartGenerating /
+  // handleRetryGeneration) before this effect runs, not inside the effect itself.
+  useEffect(() => {
+    if (screen !== "generating") return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/generate-quiz", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ images: photos, persona: personaKey }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error ?? "問題の生成に失敗しました。");
+        }
+        if (cancelled) return;
+        const generated = data as GeneratedQuiz;
+        setQuiz(generated);
+        setQuizQueue(generated.questions);
+        setCurrentIndex(0);
+        setAnswers([]);
+        goTo("quiz-intro", { push: false });
+      } catch (err) {
+        if (cancelled) return;
+        setGenerationStatus("error");
+        setGenerationError(
+          err instanceof Error ? err.message : "問題の生成に失敗しました。",
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, generationRequestId]);
+
+  function handleSelectPersona(key: PersonaKey) {
+    setPersonaKey(key);
+    setPhotos([]);
+    goTo("intro");
+  }
+
+  function handleDisabledPersona() {
+    showToast("近日公開です。まずは「自分の学習」をお試しください");
+  }
+
+  function handleAddPhotos(dataUrls: string[]) {
+    setPhotos((prev) => [...prev, ...dataUrls].slice(0, 4));
+  }
+
+  function handleRemovePhoto(idx: number) {
+    setPhotos((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function handleStartGenerating() {
+    setGenerationStatus("loading");
+    setGenerationError(null);
+    goTo("generating");
+  }
+
+  function handleRetryGeneration() {
+    setGenerationStatus("loading");
+    setGenerationError(null);
+    setGenerationRequestId((id) => id + 1);
+  }
+
+  function handleStartQuiz() {
+    if (!quiz) return;
+    setQuizQueue(quiz.questions);
+    setCurrentIndex(0);
+    setAnswers([]);
+    goTo("quiz");
+  }
+
+  function handleAnswer(correct: boolean) {
+    const q = quizQueue[currentIndex];
+    if (!q) return;
+    setAnswers((prev) => [
+      ...prev,
+      { questionId: q.id, category: q.category, correct },
+    ]);
+  }
+
+  function handleNextQuestion() {
+    const nextIndex = currentIndex + 1;
+    if (nextIndex >= quizQueue.length) {
+      setHasResults(true);
+      goTo("results");
+    } else {
+      setCurrentIndex(nextIndex);
+    }
+  }
+
+  function handleReviewWeak() {
+    const wrongIds = new Set(
+      answers.filter((a) => !a.correct).map((a) => a.questionId),
+    );
+    const source = quiz?.questions ?? [];
+    const filtered = source.filter((q) => wrongIds.has(q.id));
+    setQuizQueue(filtered.length > 0 ? filtered : source);
+    setCurrentIndex(0);
+    setAnswers([]);
+    goTo("quiz");
+  }
+
+  function handleRestart() {
+    setPhotos([]);
+    setQuiz(null);
+    setQuizQueue([]);
+    setCurrentIndex(0);
+    setAnswers([]);
+    setHasResults(false);
+    setScreenStack([]);
+    setScreen("persona");
+  }
+
+  function handleExtraCta() {
+    const msg = PERSONAS[personaKey].extraCtaToast;
+    if (msg) showToast(msg);
+  }
+
+  function handleTabSelect(tab: TabKey) {
+    if (tab === "home") goTo("persona");
+    else if (tab === "scan") goTo("capture");
+    else if (tab === "results") {
+      if (hasResults) goTo("results");
+      else showToast("まだ結果がありません。まずは練習してみましょう");
+    }
+  }
+
+  const activeTab: TabKey | null =
+    screen === "persona"
+      ? "home"
+      : screen === "capture"
+        ? "scan"
+        : screen === "results"
+          ? "results"
+          : null;
+
+  const persona = PERSONAS[personaKey];
+  const currentQuestion = quizQueue[currentIndex];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="relative mx-auto flex h-dvh w-full max-w-lg flex-col">
+      <TopBar showBack={screen !== "persona"} onBack={goBack} />
+      <main className="flex flex-1 flex-col overflow-y-auto px-5 py-6">
+        {screen === "persona" && (
+          <PersonaScreen
+            onSelect={handleSelectPersona}
+            onDisabledSelect={handleDisabledPersona}
+          />
+        )}
+
+        {screen === "intro" && (
+          <IntroScreen
+            persona={persona}
+            onStartCapture={() => goTo("capture")}
+          />
+        )}
+
+        {screen === "capture" && (
+          <CaptureScreen
+            captureHint={persona.captureHint}
+            photos={photos}
+            onAddPhotos={handleAddPhotos}
+            onRemovePhoto={handleRemovePhoto}
+            onNext={handleStartGenerating}
+          />
+        )}
+
+        {screen === "generating" && (
+          <GeneratingScreen
+            key={generationRequestId}
+            status={generationStatus}
+            errorMessage={generationError ?? undefined}
+            onRetry={handleRetryGeneration}
+            onBack={() => goTo("capture", { push: false })}
+          />
+        )}
+
+        {screen === "quiz-intro" && quiz && (
+          <QuizIntroScreen
+            quiz={quiz}
+            title={persona.quizIntroTitleTemplate(quiz.questions.length)}
+            tag={persona.quizIntroTag}
+            onStart={handleStartQuiz}
+          />
+        )}
+
+        {screen === "quiz" && currentQuestion && (
+          <QuizScreen
+            key={currentQuestion.id}
+            question={currentQuestion}
+            index={currentIndex}
+            total={quizQueue.length}
+            onAnswer={handleAnswer}
+            onNext={handleNextQuestion}
+          />
+        )}
+
+        {screen === "results" && quiz && (
+          <ResultsScreen
+            quiz={quiz}
+            answers={answers}
+            extraCta={persona.extraCta}
+            onExtraCta={handleExtraCta}
+            onReviewWeak={handleReviewWeak}
+            onRestart={handleRestart}
+          />
+        )}
       </main>
+      <FooterTabBar active={activeTab} onSelect={handleTabSelect} />
+      <Toast message={toast} />
     </div>
   );
 }
