@@ -88,7 +88,7 @@ export const PERSONAS: Record<PersonaKey, PersonaCopy> = {
     icon: "🧒",
     title: "お子さま(6歳〜)",
     subtitle: "さんすう・ことばあそびに",
-    enabled: false,
+    enabled: true,
     eyebrow: "FOR お子さま",
     introTitle: "プリントも、\nゲームみたいに。",
     introTag:

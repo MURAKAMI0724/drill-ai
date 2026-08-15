@@ -11,6 +11,8 @@ import GeneratingScreen from "@/components/screens/GeneratingScreen";
 import QuizIntroScreen from "@/components/screens/QuizIntroScreen";
 import QuizScreen from "@/components/screens/QuizScreen";
 import ResultsScreen from "@/components/screens/ResultsScreen";
+import ArithmeticScreen from "@/components/screens/ArithmeticScreen";
+import ShiritoriScreen from "@/components/screens/ShiritoriScreen";
 import { PERSONAS } from "@/lib/personas";
 import type {
   AnswerRecord,
@@ -26,7 +28,9 @@ type Screen =
   | "generating"
   | "quiz-intro"
   | "quiz"
-  | "results";
+  | "results"
+  | "kids-calc"
+  | "kids-shiritori";
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("persona");
@@ -51,6 +55,7 @@ export default function Home() {
   const [exportingPdf, setExportingPdf] = useState(false);
 
   const [toast, setToast] = useState<string | null>(null);
+  const [speechEnabled, setSpeechEnabled] = useState(true);
 
   function showToast(message: string) {
     setToast(message);
@@ -273,6 +278,22 @@ export default function Home() {
           <IntroScreen
             persona={persona}
             onStartCapture={() => goTo("capture")}
+            onStartCalc={() => goTo("kids-calc")}
+            onStartShiritori={() => goTo("kids-shiritori")}
+          />
+        )}
+
+        {screen === "kids-calc" && (
+          <ArithmeticScreen
+            speechEnabled={speechEnabled}
+            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
+          />
+        )}
+
+        {screen === "kids-shiritori" && (
+          <ShiritoriScreen
+            speechEnabled={speechEnabled}
+            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
           />
         )}
 

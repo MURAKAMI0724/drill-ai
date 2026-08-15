@@ -4,6 +4,8 @@ import type { PersonaCopy } from "@/lib/personas";
 interface IntroScreenProps {
   persona: PersonaCopy;
   onStartCapture: () => void;
+  onStartCalc?: () => void;
+  onStartShiritori?: () => void;
 }
 
 const FEATURES = [
@@ -15,7 +17,11 @@ const FEATURES = [
 export default function IntroScreen({
   persona,
   onStartCapture,
+  onStartCalc,
+  onStartShiritori,
 }: IntroScreenProps) {
+  const isKids = persona.key === "kids";
+
   return (
     <div className="flex flex-1 flex-col gap-4">
       <div className="text-[11px] font-bold tracking-[0.12em] text-gold uppercase">
@@ -40,6 +46,22 @@ export default function IntroScreen({
       </div>
 
       <div className="flex-1" />
+
+      {isKids && onStartCalc && onStartShiritori && (
+        <div className="flex gap-2.5">
+          <Button variant="secondary" className="flex-1" onClick={onStartCalc}>
+            🔢 さんすう
+          </Button>
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={onStartShiritori}
+          >
+            🔤 AIしりとり
+          </Button>
+        </div>
+      )}
+
       <Button block onClick={onStartCapture}>
         📷 教材を撮影してはじめる
       </Button>
