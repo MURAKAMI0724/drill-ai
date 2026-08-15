@@ -48,6 +48,7 @@ export default function Home() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerRecord[]>([]);
   const [hasResults, setHasResults] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const [toast, setToast] = useState<string | null>(null);
 
@@ -192,9 +193,48 @@ export default function Home() {
     setScreen("persona");
   }
 
-  function handleExtraCta() {
-    const msg = PERSONAS[personaKey].extraCtaToast;
-    if (msg) showToast(msg);
+  async function handleExtraCta() {
+    const persona = PERSONAS[personaKey];
+
+    if (persona.extraCtaAction === "pdf-worksheet") {
+      if (!quiz || exportingPdf) return;
+      setExportingPdf(true);
+      try {
+        const res = await fetch("/api/export-worksheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            quiz,
+            heading: `ドリルAI ワークシート ・ ${persona.title}`,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error ?? "PDFの生成に失敗しました。");
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "worksheet.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast("PDFを書き出しました 📄");
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "PDFの生成に失敗しました。",
+        );
+      } finally {
+        setExportingPdf(false);
+      }
+      return;
+    }
+
+    if (persona.extraCtaAction === "toast" && persona.extraCtaToast) {
+      showToast(persona.extraCtaToast);
+    }
   }
 
   function handleTabSelect(tab: TabKey) {
@@ -281,6 +321,7 @@ export default function Home() {
             quiz={quiz}
             answers={answers}
             extraCta={persona.extraCta}
+            extraCtaPending={exportingPdf}
             onExtraCta={handleExtraCta}
             onReviewWeak={handleReviewWeak}
             onRestart={handleRestart}

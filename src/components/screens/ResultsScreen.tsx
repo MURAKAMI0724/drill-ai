@@ -8,6 +8,7 @@ interface ResultsScreenProps {
   quiz: GeneratedQuiz;
   answers: AnswerRecord[];
   extraCta: string | null;
+  extraCtaPending?: boolean;
   onExtraCta: () => void;
   onReviewWeak: () => void;
   onRestart: () => void;
@@ -31,6 +32,7 @@ export default function ResultsScreen({
   quiz,
   answers,
   extraCta,
+  extraCtaPending = false,
   onExtraCta,
   onReviewWeak,
   onRestart,
@@ -185,8 +187,13 @@ export default function ResultsScreen({
 
       <div className="flex flex-col gap-2.5">
         {extraCta && (
-          <Button block variant="secondary" onClick={onExtraCta}>
-            {extraCta}
+          <Button
+            block
+            variant="secondary"
+            onClick={onExtraCta}
+            disabled={extraCtaPending}
+          >
+            {extraCtaPending ? "PDFを作成しています…" : extraCta}
           </Button>
         )}
         <div className="flex gap-2.5">
