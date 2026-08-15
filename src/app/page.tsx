@@ -13,6 +13,8 @@ import QuizScreen from "@/components/screens/QuizScreen";
 import ResultsScreen from "@/components/screens/ResultsScreen";
 import ArithmeticScreen from "@/components/screens/ArithmeticScreen";
 import ShiritoriScreen from "@/components/screens/ShiritoriScreen";
+import KotowazaScreen from "@/components/screens/KotowazaScreen";
+import NazonazoScreen from "@/components/screens/NazonazoScreen";
 import { PERSONAS } from "@/lib/personas";
 import type {
   AnswerRecord,
@@ -30,7 +32,9 @@ type Screen =
   | "quiz"
   | "results"
   | "kids-calc"
-  | "kids-shiritori";
+  | "kids-shiritori"
+  | "kids-kotowaza"
+  | "kids-nazonazo";
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("persona");
@@ -280,6 +284,8 @@ export default function Home() {
             onStartCapture={() => goTo("capture")}
             onStartCalc={() => goTo("kids-calc")}
             onStartShiritori={() => goTo("kids-shiritori")}
+            onStartKotowaza={() => goTo("kids-kotowaza")}
+            onStartNazonazo={() => goTo("kids-nazonazo")}
           />
         )}
 
@@ -292,6 +298,20 @@ export default function Home() {
 
         {screen === "kids-shiritori" && (
           <ShiritoriScreen
+            speechEnabled={speechEnabled}
+            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
+          />
+        )}
+
+        {screen === "kids-kotowaza" && (
+          <KotowazaScreen
+            speechEnabled={speechEnabled}
+            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
+          />
+        )}
+
+        {screen === "kids-nazonazo" && (
+          <NazonazoScreen
             speechEnabled={speechEnabled}
             onToggleSpeech={() => setSpeechEnabled((v) => !v)}
           />

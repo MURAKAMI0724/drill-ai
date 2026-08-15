@@ -6,6 +6,8 @@ interface IntroScreenProps {
   onStartCapture: () => void;
   onStartCalc?: () => void;
   onStartShiritori?: () => void;
+  onStartKotowaza?: () => void;
+  onStartNazonazo?: () => void;
 }
 
 const FEATURES = [
@@ -19,6 +21,8 @@ export default function IntroScreen({
   onStartCapture,
   onStartCalc,
   onStartShiritori,
+  onStartKotowaza,
+  onStartNazonazo,
 }: IntroScreenProps) {
   const isKids = persona.key === "kids";
 
@@ -58,6 +62,25 @@ export default function IntroScreen({
             onClick={onStartShiritori}
           >
             🔤 AIしりとり
+          </Button>
+        </div>
+      )}
+
+      {isKids && onStartKotowaza && onStartNazonazo && (
+        <div className="flex gap-2.5">
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={onStartKotowaza}
+          >
+            📖 ことわざクイズ
+          </Button>
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={onStartNazonazo}
+          >
+            ❓ なぞなぞ
           </Button>
         </div>
       )}
