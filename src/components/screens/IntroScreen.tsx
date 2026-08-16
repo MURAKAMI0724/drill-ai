@@ -9,6 +9,8 @@ interface IntroScreenProps {
   onStartKotowaza?: () => void;
   onStartNazonazo?: () => void;
   onStartNakama?: () => void;
+  onStartClock?: () => void;
+  onStartNakigoe?: () => void;
 }
 
 const FEATURES = [
@@ -25,6 +27,8 @@ export default function IntroScreen({
   onStartKotowaza,
   onStartNazonazo,
   onStartNakama,
+  onStartClock,
+  onStartNakigoe,
 }: IntroScreenProps) {
   const isKids = persona.key === "kids";
 
@@ -83,6 +87,21 @@ export default function IntroScreen({
             onClick={onStartNazonazo}
           >
             ❓ なぞなぞ
+          </Button>
+        </div>
+      )}
+
+      {isKids && onStartClock && onStartNakigoe && (
+        <div className="flex gap-2.5">
+          <Button variant="secondary" className="flex-1" onClick={onStartClock}>
+            🕐 とけいの よみかた
+          </Button>
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={onStartNakigoe}
+          >
+            🐾 なきごえ クイズ
           </Button>
         </div>
       )}
