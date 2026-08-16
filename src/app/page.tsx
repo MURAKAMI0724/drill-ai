@@ -18,6 +18,8 @@ import NazonazoScreen from "@/components/screens/NazonazoScreen";
 import NakamaScreen from "@/components/screens/NakamaScreen";
 import ClockScreen from "@/components/screens/ClockScreen";
 import NakigoeScreen from "@/components/screens/NakigoeScreen";
+import HantaiScreen from "@/components/screens/HantaiScreen";
+import OkaneScreen from "@/components/screens/OkaneScreen";
 import { PERSONAS } from "@/lib/personas";
 import type {
   AnswerRecord,
@@ -40,7 +42,9 @@ type Screen =
   | "kids-nazonazo"
   | "kids-nakama"
   | "kids-clock"
-  | "kids-nakigoe";
+  | "kids-nakigoe"
+  | "kids-hantai"
+  | "kids-okane";
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("persona");
@@ -295,6 +299,8 @@ export default function Home() {
             onStartNakama={() => goTo("kids-nakama")}
             onStartClock={() => goTo("kids-clock")}
             onStartNakigoe={() => goTo("kids-nakigoe")}
+            onStartHantai={() => goTo("kids-hantai")}
+            onStartOkane={() => goTo("kids-okane")}
           />
         )}
 
@@ -342,6 +348,20 @@ export default function Home() {
 
         {screen === "kids-nakigoe" && (
           <NakigoeScreen
+            speechEnabled={speechEnabled}
+            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
+          />
+        )}
+
+        {screen === "kids-hantai" && (
+          <HantaiScreen
+            speechEnabled={speechEnabled}
+            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
+          />
+        )}
+
+        {screen === "kids-okane" && (
+          <OkaneScreen
             speechEnabled={speechEnabled}
             onToggleSpeech={() => setSpeechEnabled((v) => !v)}
           />
