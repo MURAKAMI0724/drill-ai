@@ -1,9 +1,17 @@
 import {
   KANA_NORMALIZE,
   KANJI_TO_HIRAGANA,
+  SHIRITORI_STARTERS,
   SHIRITORI_TRAP_WORDS,
   SHIRITORI_WORDS,
 } from "./shiritori-data";
+
+/** Picks the AI's opening word for a new game. Kept outside the component so the Math.random() call isn't part of its render/effect purity analysis. */
+export function pickStarterWord(): string {
+  const starter =
+    SHIRITORI_STARTERS[Math.floor(Math.random() * SHIRITORI_STARTERS.length)];
+  return SHIRITORI_WORDS.includes(starter) ? starter : SHIRITORI_WORDS[0];
+}
 
 export const HIRAGANA_ONLY_RE = /^[ぁ-ゖー]+$/;
 

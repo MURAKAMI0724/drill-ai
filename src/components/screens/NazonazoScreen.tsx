@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { KANJI_TO_HIRAGANA } from "@/lib/kids/shiritori-data";
 import { NAZONAZO_QUESTIONS } from "@/lib/kids/kids-quiz-data";
-import { HIRAGANA_ONLY_RE, normalizeKana } from "@/lib/kids/shiritori";
+import { HIRAGANA_ONLY_RE } from "@/lib/kids/shiritori";
+import { normalizeAnswer } from "@/lib/kids/nazonazo";
 import { convertToHiraganaViaApi } from "@/lib/kids/kana-convert-client";
 import { pickUnusedIndex } from "@/lib/kids/question-pool";
 import { cancelSpeech, speak } from "@/lib/kids/speech";
@@ -32,6 +33,7 @@ export default function NazonazoScreen({
   const [feedbackText, setFeedbackText] = useState("");
   const [correctCount, setCorrectCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [hintUsed, setHintUsed] = useState(false);
   const [converting, setConverting] = useState(false);
   const [micListening, setMicListening] = useState(false);
   const [micStatus, setMicStatus] = useState("");
@@ -86,12 +88,12 @@ export default function NazonazoScreen({
 
   function submitAnswer(raw: string) {
     if (finishedRef.current) return;
-    const word = normalizeKana(raw);
+    const word = normalizeAnswer(raw);
     if (!word) return;
     setInputValue("");
 
     const isCorrect = question.acceptableAnswers.some(
-      (a) => normalizeKana(a) === word,
+      (a) => normalizeAnswer(a) === word,
     );
 
     if (isCorrect) {
@@ -109,7 +111,15 @@ export default function NazonazoScreen({
     }
   }
 
+  /** Shows the hint text only — doesn't end the round, so the child can keep guessing. */
   function showHint() {
+    if (finishedRef.current || hintUsed) return;
+    setHintUsed(true);
+    say(question.hint);
+  }
+
+  /** Gives up on the round: reveals the answer and moves to "next question". */
+  function showAnswer() {
     if (finishedRef.current) return;
     finishedRef.current = true;
     setFinished(true);
@@ -126,6 +136,7 @@ export default function NazonazoScreen({
     setFinished(false);
     setFeedbackKind(null);
     setFeedbackText("");
+    setHintUsed(false);
     setMicStatus("");
     finishedRef.current = false;
   }
@@ -142,6 +153,9 @@ export default function NazonazoScreen({
     setConverting(true);
     const converted = await convertToHiraganaViaApi(raw);
     setConverting(false);
+    if (process.env.NODE_ENV === "development") {
+      console.debug("[nazonazo mic] raw:", raw, "hiragana:", converted);
+    }
     if (finishedRef.current) return;
 
     if (converted) {
@@ -264,6 +278,11 @@ export default function NazonazoScreen({
           🔄 へんかんちゅう…
         </div>
       )}
+      {hintUsed && !finished && (
+        <div className="rounded-2xl border-[1.5px] border-gold-wash-2 bg-gold-wash px-[17px] py-[15px] text-center text-[14px] font-bold text-gold-bright">
+          💡 {question.hint}
+        </div>
+      )}
       {feedbackKind && !converting && (
         <div
           className={[
@@ -317,12 +336,22 @@ export default function NazonazoScreen({
       )}
 
       {!finished && (
-        <button
-          onClick={showHint}
-          className="rounded-2xl border-[1.5px] border-gold-wash-2 px-5 py-3.5 text-[14px] font-bold text-gold-bright active:scale-[0.98]"
-        >
-          💡 ヒントを見る
-        </button>
+        <div className="flex gap-2.5">
+          {!hintUsed && (
+            <button
+              onClick={showHint}
+              className="flex-1 rounded-2xl border-[1.5px] border-gold-wash-2 px-5 py-3.5 text-[14px] font-bold text-gold-bright active:scale-[0.98]"
+            >
+              💡 ヒントを見る
+            </button>
+          )}
+          <button
+            onClick={showAnswer}
+            className="flex-1 rounded-2xl border-[1.5px] border-border px-5 py-3.5 text-[14px] font-bold text-fg-soft active:scale-[0.98]"
+          >
+            🙈 こたえを みる
+          </button>
+        </div>
       )}
 
       <div className="flex-1" />

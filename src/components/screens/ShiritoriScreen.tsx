@@ -1,20 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  KANJI_TO_HIRAGANA,
-  SHIRITORI_STARTERS,
-  SHIRITORI_WORDS,
-} from "@/lib/kids/shiritori-data";
+import { KANJI_TO_HIRAGANA } from "@/lib/kids/shiritori-data";
 import {
   decideAiMove,
   firstKana,
   HIRAGANA_ONLY_RE,
   lastKana,
   normalizeKana,
+  pickStarterWord,
 } from "@/lib/kids/shiritori";
 import { convertToHiraganaViaApi } from "@/lib/kids/kana-convert-client";
+import { numberToJapaneseWords } from "@/lib/kids/japanese-numbers";
 import { cancelSpeech, speak } from "@/lib/kids/speech";
+
+const KID_TURN_SECONDS = 20;
 
 interface ShiritoriScreenProps {
   speechEnabled: boolean;
@@ -51,6 +51,7 @@ export default function ShiritoriScreen({
   const [inputValue, setInputValue] = useState("");
   const [gameOver, setGameOver] = useState(false);
   const [endInfo, setEndInfo] = useState<EndInfo | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [micListening, setMicListening] = useState(false);
   const [micStatus, setMicStatus] = useState("");
   const [converting, setConverting] = useState(false);
@@ -69,6 +70,9 @@ export default function ShiritoriScreen({
   const timeoutsRef = useRef<number[]>([]);
   const bubbleIdRef = useRef(0);
   const logRef = useRef<HTMLDivElement>(null);
+  const timerIntervalRef = useRef<number | null>(null);
+  const timerSecondsRef = useRef(KID_TURN_SECONDS);
+  const lastSpokenSecondRef = useRef<number | null>(null);
 
   useEffect(() => {
     speechEnabledRef.current = speechEnabled;
@@ -88,6 +92,43 @@ export default function ShiritoriScreen({
     timeoutsRef.current.push(id);
   }
 
+  function stopKidTimer() {
+    if (timerIntervalRef.current !== null) {
+      window.clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    lastSpokenSecondRef.current = null;
+    setSecondsLeft(null);
+  }
+
+  /** Starts (or restarts) the 20s countdown for the child's turn. */
+  function startKidTimer() {
+    stopKidTimer();
+    timerSecondsRef.current = KID_TURN_SECONDS;
+    setSecondsLeft(KID_TURN_SECONDS);
+    timerIntervalRef.current = window.setInterval(() => {
+      timerSecondsRef.current -= 1;
+      const next = timerSecondsRef.current;
+      setSecondsLeft(next);
+      if (next <= 5 && next >= 1 && lastSpokenSecondRef.current !== next) {
+        lastSpokenSecondRef.current = next;
+        say(numberToJapaneseWords(next));
+      }
+      if (next <= 0) {
+        if (timerIntervalRef.current !== null) {
+          window.clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
+        }
+        handleTimeUp();
+      }
+    }, 1000);
+  }
+
+  function handleTimeUp() {
+    if (gameOverRef.current) return;
+    endShiritori(false, false, true);
+  }
+
   function pushBubble(kind: BubbleKind, text: string) {
     const id = ++bubbleIdRef.current;
     setBubbles((prev) => [...prev, { id, kind, text }]);
@@ -105,24 +146,30 @@ export default function ShiritoriScreen({
     const req = lastKana(word);
     requiredKanaRef.current = req;
     setNeedKana(`「${req}」から はじまる ことばを いれてね`);
+    startKidTimer();
   }
 
-  function endShiritori(kidWins: boolean, aiSlipped = false) {
+  function endShiritori(kidWins: boolean, aiSlipped = false, timeUp = false) {
     gameOverRef.current = true;
     setGameOver(true);
     stopMic();
+    stopKidTimer();
     setNeedKana("");
-    const title = aiSlipped
-      ? "やったね!AIが「ん」を つけちゃった!"
-      : kidWins
-        ? "やったね!きみの かち!"
-        : "また ちょうせんしよう!";
-    const body = aiSlipped
-      ? `AIが「ん」で おわる ことばを いっちゃった!${chainRef.current.length}こ ことばが つながったよ。`
-      : kidWins
-        ? `AIが つぎの ことばに こまっちゃった!${chainRef.current.length}こ ことばが つながったよ。`
-        : `「ん」で おわっちゃった。${chainRef.current.length}こ ことばが つながったよ。またチャレンジしてね!`;
-    setEndInfo({ emoji: kidWins ? "🏆" : "😊", title, body });
+    const title = timeUp
+      ? "じかんぎれ!"
+      : aiSlipped
+        ? "やったね!AIが「ん」を つけちゃった!"
+        : kidWins
+          ? "やったね!きみの かち!"
+          : "また ちょうせんしよう!";
+    const body = timeUp
+      ? `20びょう いないに こたえられなかったよ。${chainRef.current.length}こ ことばが つながったよ。またチャレンジしてね!`
+      : aiSlipped
+        ? `AIが「ん」で おわる ことばを いっちゃった!${chainRef.current.length}こ ことばが つながったよ。`
+        : kidWins
+          ? `AIが つぎの ことばに こまっちゃった!${chainRef.current.length}こ ことばが つながったよ。`
+          : `「ん」で おわっちゃった。${chainRef.current.length}こ ことばが つながったよ。またチャレンジしてね!`;
+    setEndInfo({ emoji: timeUp ? "⏰" : kidWins ? "🏆" : "😊", title, body });
     say(title);
   }
 
@@ -152,6 +199,7 @@ export default function ShiritoriScreen({
       return;
     }
     if (lastKana(word) === "ん") {
+      stopKidTimer();
       usedRef.current.add(word);
       chainRef.current.push({ word, who: "kid" });
       const msg = "「ん」が ついちゃった!";
@@ -161,6 +209,7 @@ export default function ShiritoriScreen({
       return;
     }
 
+    stopKidTimer();
     usedRef.current.add(word);
     chainRef.current.push({ word, who: "kid" });
     const requiredKana = lastKana(word);
@@ -211,10 +260,9 @@ export default function ShiritoriScreen({
     setInputValue("");
     setNeedKana("");
     setMicStatus("");
+    stopKidTimer();
 
-    const starter =
-      SHIRITORI_STARTERS[Math.floor(Math.random() * SHIRITORI_STARTERS.length)];
-    const entry = SHIRITORI_WORDS.includes(starter) ? starter : SHIRITORI_WORDS[0];
+    const entry = pickStarterWord();
 
     pushBubble("thinking", "…");
     addTimeout(() => {
@@ -230,6 +278,10 @@ export default function ShiritoriScreen({
       window.clearTimeout(startId);
       cancelSpeech();
       pendingTimeouts.forEach((id) => window.clearTimeout(id));
+      if (timerIntervalRef.current !== null) {
+        window.clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -346,7 +398,14 @@ export default function ShiritoriScreen({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-3">
+    <div className="relative flex flex-1 flex-col gap-3">
+      {secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 10 && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+          <div className="text-[72px] font-black text-critical drop-shadow-[0_2px_12px_rgba(0,0,0,0.35)] tabular-nums">
+            {secondsLeft}
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div className="text-[11px] font-bold tracking-[0.12em] text-gold uppercase">
           AIしりとり

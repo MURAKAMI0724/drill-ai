@@ -8,6 +8,7 @@ interface IntroScreenProps {
   onStartShiritori?: () => void;
   onStartKotowaza?: () => void;
   onStartNazonazo?: () => void;
+  onStartNakama?: () => void;
 }
 
 const FEATURES = [
@@ -23,6 +24,7 @@ export default function IntroScreen({
   onStartShiritori,
   onStartKotowaza,
   onStartNazonazo,
+  onStartNakama,
 }: IntroScreenProps) {
   const isKids = persona.key === "kids";
 
@@ -83,6 +85,12 @@ export default function IntroScreen({
             ❓ なぞなぞ
           </Button>
         </div>
+      )}
+
+      {isKids && onStartNakama && (
+        <Button block variant="secondary" onClick={onStartNakama}>
+          🔍 なかまはずれ さがし
+        </Button>
       )}
 
       <Button block onClick={onStartCapture}>
