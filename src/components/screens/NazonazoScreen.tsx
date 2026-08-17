@@ -8,7 +8,7 @@ import NextButton from "@/components/kids/NextButton";
 import QuestionCard from "@/components/kids/QuestionCard";
 import type { ModeScreenProps } from "@/components/kids/modes";
 import { KANJI_TO_HIRAGANA } from "@/lib/kids/shiritori-data";
-import { NAZONAZO_QUESTIONS } from "@/lib/kids/kids-quiz-data";
+import { NAZONAZO_QUESTIONS } from "@/lib/kids/nazonazo-data";
 import { HIRAGANA_ONLY_RE } from "@/lib/kids/shiritori";
 import { normalizeAnswer } from "@/lib/kids/nazonazo";
 import { convertToHiraganaViaApi } from "@/lib/kids/kana-convert-client";
@@ -262,7 +262,7 @@ export default function NazonazoScreen({
       onToggleSpeech={onToggleSpeech}
       progress={Math.min(totalCount, 10) / 10}
     >
-      <QuestionCard>
+      <QuestionCard label={question.genre}>
         <div className="text-[20px] leading-relaxed font-extrabold text-ink">
           {question.question}
         </div>
@@ -287,11 +287,18 @@ export default function NazonazoScreen({
               : `✕ ${feedbackText}`}
         </FeedbackBanner>
       )}
+      {finished &&
+        (feedbackKind === "correct" || feedbackKind === "hint") &&
+        question.note && (
+          <div className="-mt-2 text-center text-[12px] font-bold text-ink-sub">
+            {question.note}
+          </div>
+        )}
       {micStatus && (
         <div className="text-center text-sm font-bold text-bad">{micStatus}</div>
       )}
 
-      {!finished && (
+      {!finished && !question.openEnded && (
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -326,7 +333,16 @@ export default function NazonazoScreen({
         </div>
       )}
 
-      {!finished && (
+      {!finished && question.openEnded && (
+        <button
+          onClick={showAnswer}
+          className="min-h-[60px] rounded-2xl bg-surface px-5 text-[15px] font-extrabold text-ink-sub shadow-[0_2px_0_rgba(35,52,87,0.08)] transition active:scale-[0.98]"
+        >
+          🙈 こたえを みる
+        </button>
+      )}
+
+      {!finished && !question.openEnded && (
         <div className="flex gap-2.5">
           {!hintUsed && (
             <HintButton onClick={showHint} className="flex-1" />
