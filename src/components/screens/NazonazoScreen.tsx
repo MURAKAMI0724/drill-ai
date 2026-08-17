@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import FeedbackBanner from "@/components/kids/FeedbackBanner";
+import GameLayout from "@/components/kids/GameLayout";
+import HintButton from "@/components/kids/HintButton";
+import NextButton from "@/components/kids/NextButton";
+import QuestionCard from "@/components/kids/QuestionCard";
+import type { ModeScreenProps } from "@/components/kids/modes";
 import { KANJI_TO_HIRAGANA } from "@/lib/kids/shiritori-data";
 import { NAZONAZO_QUESTIONS } from "@/lib/kids/kids-quiz-data";
 import { HIRAGANA_ONLY_RE } from "@/lib/kids/shiritori";
@@ -9,17 +15,16 @@ import { convertToHiraganaViaApi } from "@/lib/kids/kana-convert-client";
 import { pickUnusedIndex } from "@/lib/kids/question-pool";
 import { cancelSpeech, speak } from "@/lib/kids/speech";
 
-interface NazonazoScreenProps {
-  speechEnabled: boolean;
-  onToggleSpeech: () => void;
-}
-
 type FeedbackKind = "correct" | "incorrect" | "hint" | null;
 
 export default function NazonazoScreen({
   speechEnabled,
   onToggleSpeech,
-}: NazonazoScreenProps) {
+  onBack,
+  stars,
+  starBumpToken,
+  onCorrect,
+}: ModeScreenProps) {
   const usedRef = useRef<Set<number>>(new Set());
   const speechEnabledRef = useRef(speechEnabled);
   const finishedRef = useRef(false);
@@ -31,7 +36,6 @@ export default function NazonazoScreen({
   const [finished, setFinished] = useState(false);
   const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>(null);
   const [feedbackText, setFeedbackText] = useState("");
-  const [correctCount, setCorrectCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [hintUsed, setHintUsed] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -100,9 +104,9 @@ export default function NazonazoScreen({
       finishedRef.current = true;
       setFinished(true);
       setFeedbackKind("correct");
-      setFeedbackText("◯ せいかい!");
+      setFeedbackText("せいかい!");
       setTotalCount((n) => n + 1);
-      setCorrectCount((n) => n + 1);
+      onCorrect?.();
       say("せいかい!");
     } else {
       setFeedbackKind("incorrect");
@@ -249,56 +253,42 @@ export default function NazonazoScreen({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] font-bold tracking-[0.12em] text-gold uppercase">
-          なぞなぞ
+    <GameLayout
+      title="なぞなぞ"
+      onBack={onBack}
+      stars={stars}
+      starBumpToken={starBumpToken}
+      speechEnabled={speechEnabled}
+      onToggleSpeech={onToggleSpeech}
+      progress={Math.min(totalCount, 10) / 10}
+    >
+      <QuestionCard>
+        <div className="text-[20px] leading-relaxed font-extrabold text-ink">
+          {question.question}
         </div>
-        <button
-          onClick={onToggleSpeech}
-          aria-label={
-            speechEnabled ? "音声オン(タップでオフ)" : "音声オフ(タップでオン)"
-          }
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface-1 text-lg active:scale-95"
-        >
-          {speechEnabled ? "🔊" : "🔇"}
-        </button>
-      </div>
-
-      <div className="text-center text-xs text-fg-faint">
-        せいかい {correctCount}もん / {totalCount}もん
-      </div>
-
-      <div className="rounded-2xl border border-border bg-surface-1 px-5 py-6 text-center text-[17px] leading-relaxed font-bold">
-        {question.question}
-      </div>
+      </QuestionCard>
 
       {converting && (
-        <div className="text-center text-xs text-gold">
+        <div className="text-center text-sm font-bold text-ink-sub">
           🔄 へんかんちゅう…
         </div>
       )}
       {hintUsed && !finished && (
-        <div className="rounded-2xl border-[1.5px] border-gold-wash-2 bg-gold-wash px-[17px] py-[15px] text-center text-[14px] font-bold text-gold-bright">
-          💡 {question.hint}
-        </div>
+        <FeedbackBanner kind="hint">💡 {question.hint}</FeedbackBanner>
       )}
       {feedbackKind && !converting && (
-        <div
-          className={[
-            "rounded-2xl px-[17px] py-[15px] text-center text-[15px] font-bold",
-            feedbackKind === "correct"
-              ? "bg-good-bg text-good"
-              : feedbackKind === "hint"
-                ? "bg-gold-wash text-gold-bright"
-                : "bg-critical-bg text-critical",
-          ].join(" ")}
+        <FeedbackBanner
+          kind={feedbackKind === "hint" ? "hint" : feedbackKind}
         >
-          {feedbackText}
-        </div>
+          {feedbackKind === "correct"
+            ? `🎉 ${feedbackText}`
+            : feedbackKind === "hint"
+              ? feedbackText
+              : `✕ ${feedbackText}`}
+        </FeedbackBanner>
       )}
       {micStatus && (
-        <div className="text-center text-xs text-critical">{micStatus}</div>
+        <div className="text-center text-sm font-bold text-bad">{micStatus}</div>
       )}
 
       {!finished && (
@@ -310,7 +300,7 @@ export default function NazonazoScreen({
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="こたえを にゅうりょく"
-            className="flex-1 rounded-2xl border-[1.5px] border-border bg-surface-1 px-4 py-3.5 text-base text-fg outline-none focus:border-gold disabled:opacity-50"
+            className="min-h-[60px] w-0 min-w-0 flex-1 rounded-2xl border-[3px] border-white bg-surface px-4 text-[17px] font-bold text-ink shadow-[0_2px_0_rgba(35,52,87,0.08)] outline-none focus:border-[var(--c-nazo)] disabled:opacity-50"
           />
           {micSupported && (
             <button
@@ -318,8 +308,8 @@ export default function NazonazoScreen({
               disabled={converting}
               aria-label={micListening ? "きいています" : "タップして はなす"}
               className={[
-                "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-surface-1 text-lg active:scale-95 disabled:opacity-50",
-                micListening ? "animate-mic-pulse border-critical" : "",
+                "flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-full bg-surface text-2xl shadow-[0_2px_0_rgba(35,52,87,0.08)] transition active:scale-95 disabled:opacity-50",
+                micListening ? "animate-mic-pulse" : "",
               ].join(" ")}
             >
               {micListening ? "🔴" : "🎤"}
@@ -328,7 +318,8 @@ export default function NazonazoScreen({
           <button
             onClick={handleSend}
             disabled={!inputValue.trim() || converting}
-            className="flex h-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-gold-bright to-[#b8903c] px-4 text-sm font-bold text-[#231803] active:scale-95 disabled:opacity-35"
+            className="flex h-[60px] shrink-0 items-center justify-center rounded-2xl px-5 text-base font-extrabold text-ink shadow-[0_3px_0_rgba(35,52,87,0.10)] transition active:scale-95 disabled:opacity-35"
+            style={{ background: "linear-gradient(90deg,#ffd166,#ff8fab)" }}
           >
             おくる
           </button>
@@ -338,16 +329,11 @@ export default function NazonazoScreen({
       {!finished && (
         <div className="flex gap-2.5">
           {!hintUsed && (
-            <button
-              onClick={showHint}
-              className="flex-1 rounded-2xl border-[1.5px] border-gold-wash-2 px-5 py-3.5 text-[14px] font-bold text-gold-bright active:scale-[0.98]"
-            >
-              💡 ヒントを見る
-            </button>
+            <HintButton onClick={showHint} className="flex-1" />
           )}
           <button
             onClick={showAnswer}
-            className="flex-1 rounded-2xl border-[1.5px] border-border px-5 py-3.5 text-[14px] font-bold text-fg-soft active:scale-[0.98]"
+            className="min-h-[60px] flex-1 rounded-2xl bg-surface px-5 text-[15px] font-extrabold text-ink-sub shadow-[0_2px_0_rgba(35,52,87,0.08)] transition active:scale-[0.98]"
           >
             🙈 こたえを みる
           </button>
@@ -355,14 +341,7 @@ export default function NazonazoScreen({
       )}
 
       <div className="flex-1" />
-      {finished && (
-        <button
-          onClick={nextQuestion}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-gold-bright to-[#b8903c] px-5 py-4 text-[15.5px] font-bold text-[#231803] transition active:scale-[0.98]"
-        >
-          つぎのもんだいへ
-        </button>
-      )}
-    </div>
+      {finished && <NextButton onClick={nextQuestion} />}
+    </GameLayout>
   );
 }

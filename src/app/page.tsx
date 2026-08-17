@@ -1,425 +1,196 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import TopBar from "@/components/TopBar";
-import FooterTabBar, { type TabKey } from "@/components/FooterTabBar";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentType,
+} from "react";
 import Toast from "@/components/Toast";
-import PersonaScreen from "@/components/screens/PersonaScreen";
-import IntroScreen from "@/components/screens/IntroScreen";
-import CaptureScreen from "@/components/screens/CaptureScreen";
-import GeneratingScreen from "@/components/screens/GeneratingScreen";
-import QuizIntroScreen from "@/components/screens/QuizIntroScreen";
-import QuizScreen from "@/components/screens/QuizScreen";
-import ResultsScreen from "@/components/screens/ResultsScreen";
+import MenuTile from "@/components/kids/MenuTile";
+import StarChip from "@/components/kids/StarChip";
+import { MODES, type ModeKey, type ModeScreenProps } from "@/components/kids/modes";
 import ArithmeticScreen from "@/components/screens/ArithmeticScreen";
 import ShiritoriScreen from "@/components/screens/ShiritoriScreen";
-import KotowazaScreen from "@/components/screens/KotowazaScreen";
 import NazonazoScreen from "@/components/screens/NazonazoScreen";
 import NakamaScreen from "@/components/screens/NakamaScreen";
 import ClockScreen from "@/components/screens/ClockScreen";
 import NakigoeScreen from "@/components/screens/NakigoeScreen";
 import HantaiScreen from "@/components/screens/HantaiScreen";
 import OkaneScreen from "@/components/screens/OkaneScreen";
-import { PERSONAS } from "@/lib/personas";
-import type {
-  AnswerRecord,
-  GeneratedQuiz,
-  PersonaKey,
-  QuizQuestion,
-} from "@/lib/types";
+import KotowazaScreen from "@/components/screens/KotowazaScreen";
+import { APP_NAME, APP_TAGLINE } from "@/lib/constants";
+import { speak } from "@/lib/kids/speech";
 
-type Screen =
-  | "persona"
-  | "intro"
-  | "capture"
-  | "generating"
-  | "quiz-intro"
-  | "quiz"
-  | "results"
-  | "kids-calc"
-  | "kids-shiritori"
-  | "kids-kotowaza"
-  | "kids-nazonazo"
-  | "kids-nakama"
-  | "kids-clock"
-  | "kids-nakigoe"
-  | "kids-hantai"
-  | "kids-okane";
+type Screen = "home" | ModeKey;
+
+const STARS_STORAGE_KEY = "kodomo-app-stars";
+
+let starsListeners: Array<() => void> = [];
+
+function subscribeStars(callback: () => void) {
+  starsListeners.push(callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    starsListeners = starsListeners.filter((l) => l !== callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+function getStarsSnapshot(): number {
+  const raw = window.localStorage.getItem(STARS_STORAGE_KEY);
+  const n = raw ? parseInt(raw, 10) : 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function getStarsServerSnapshot(): number {
+  return 0;
+}
+
+/** Writes the new star count and notifies this tab's own useSyncExternalStore subscribers (the native "storage" event only fires in *other* tabs). */
+function writeStars(next: number) {
+  window.localStorage.setItem(STARS_STORAGE_KEY, String(next));
+  starsListeners.forEach((l) => l());
+}
+
+const SCREEN_COMPONENTS: Record<ModeKey, ComponentType<ModeScreenProps>> = {
+  calc: ArithmeticScreen,
+  shiritori: ShiritoriScreen,
+  nazonazo: NazonazoScreen,
+  nakama: NakamaScreen,
+  clock: ClockScreen,
+  nakigoe: NakigoeScreen,
+  hantai: HantaiScreen,
+  okane: OkaneScreen,
+  kotowaza: KotowazaScreen,
+};
+
+const BG_DECORATIONS =
+  "radial-gradient(circle at 12% 8%, #ffffff88 0 36px, transparent 40px)," +
+  "radial-gradient(circle at 86% 14%, #ffffff70 0 48px, transparent 52px)," +
+  "radial-gradient(circle at 22% 34%, #ffffff55 0 28px, transparent 32px)," +
+  "radial-gradient(circle at 92% 46%, #ffffff66 0 40px, transparent 44px)," +
+  "radial-gradient(circle at 8% 62%, #ffffff55 0 32px, transparent 36px)," +
+  "radial-gradient(circle at 74% 78%, #ffffff55 0 44px, transparent 48px)";
 
 export default function Home() {
-  const [screen, setScreen] = useState<Screen>("persona");
-  const [, setScreenStack] = useState<Screen[]>([]);
-
-  const [personaKey, setPersonaKey] = useState<PersonaKey>("individual");
-  const [photos, setPhotos] = useState<string[]>([]);
-
-  const [quiz, setQuiz] = useState<GeneratedQuiz | null>(null);
-  const [generationRequestId, setGenerationRequestId] = useState(0);
-  const [generationStatus, setGenerationStatus] = useState<
-    "loading" | "error"
-  >("loading");
-  const [generationError, setGenerationError] = useState<string | null>(
-    null,
-  );
-
-  const [quizQueue, setQuizQueue] = useState<QuizQuestion[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<AnswerRecord[]>([]);
-  const [hasResults, setHasResults] = useState(false);
-  const [exportingPdf, setExportingPdf] = useState(false);
-
-  const [toast, setToast] = useState<string | null>(null);
+  const [screen, setScreen] = useState<Screen>("home");
   const [speechEnabled, setSpeechEnabled] = useState(true);
+  // useSyncExternalStore (not useState+useEffect) keeps this both
+  // hydration-safe — server & first client render both see 0 via
+  // getStarsServerSnapshot — and reactive to same-tab writes via writeStars.
+  const stars = useSyncExternalStore(
+    subscribeStars,
+    getStarsSnapshot,
+    getStarsServerSnapshot,
+  );
+  const [starBumpToken, setStarBumpToken] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const speechEnabledRef = useRef(speechEnabled);
+  const greetedRef = useRef(false);
+
+  useEffect(() => {
+    speechEnabledRef.current = speechEnabled;
+  }, [speechEnabled]);
+
+  useEffect(() => {
+    if (screen !== "home" || greetedRef.current) return;
+    greetedRef.current = true;
+    speak("きょうは なにで あそぶ?", speechEnabledRef.current);
+  }, [screen]);
 
   function showToast(message: string) {
     setToast(message);
     setTimeout(() => setToast(null), 2200);
   }
 
-  function goTo(next: Screen, opts: { push?: boolean } = {}) {
-    const push = opts.push !== false;
-    if (push && screen !== next) {
-      setScreenStack((prev) => [...prev, screen]);
+  function addStar() {
+    const prev = getStarsSnapshot();
+    const next = prev + 1;
+    writeStars(next);
+    if (Math.floor(next / 10) > Math.floor(prev / 10)) {
+      const msg = `⭐が ${next}こ たまったよ! すごい!`;
+      showToast(msg);
+      speak(msg, speechEnabledRef.current);
     }
-    setScreen(next);
+    setStarBumpToken((t) => t + 1);
   }
 
-  function goBack() {
-    setScreenStack((prev) => {
-      if (prev.length === 0) return prev;
-      setScreen(prev[prev.length - 1]);
-      return prev.slice(0, -1);
-    });
-  }
-
-  // Generate the quiz whenever we land on the "generating" screen (initial visit or retry).
-  // `generationStatus`/`generationError` are reset by the caller (handleStartGenerating /
-  // handleRetryGeneration) before this effect runs, not inside the effect itself.
-  useEffect(() => {
-    if (screen !== "generating") return;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const res = await fetch("/api/generate-quiz", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ images: photos, persona: personaKey }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.error ?? "問題の生成に失敗しました。");
-        }
-        if (cancelled) return;
-        const generated = data as GeneratedQuiz;
-        setQuiz(generated);
-        setQuizQueue(generated.questions);
-        setCurrentIndex(0);
-        setAnswers([]);
-        goTo("quiz-intro", { push: false });
-      } catch (err) {
-        if (cancelled) return;
-        setGenerationStatus("error");
-        setGenerationError(
-          err instanceof Error ? err.message : "問題の生成に失敗しました。",
-        );
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, generationRequestId]);
-
-  function handleSelectPersona(key: PersonaKey) {
-    setPersonaKey(key);
-    setPhotos([]);
-    goTo("intro");
-  }
-
-  function handleDisabledPersona() {
-    showToast("近日公開です。まずは「自分の学習」をお試しください");
-  }
-
-  function handleAddPhotos(dataUrls: string[]) {
-    setPhotos((prev) => [...prev, ...dataUrls].slice(0, 4));
-  }
-
-  function handleRemovePhoto(idx: number) {
-    setPhotos((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  function handleStartGenerating() {
-    setGenerationStatus("loading");
-    setGenerationError(null);
-    goTo("generating");
-  }
-
-  function handleRetryGeneration() {
-    setGenerationStatus("loading");
-    setGenerationError(null);
-    setGenerationRequestId((id) => id + 1);
-  }
-
-  function handleStartQuiz() {
-    if (!quiz) return;
-    setQuizQueue(quiz.questions);
-    setCurrentIndex(0);
-    setAnswers([]);
-    goTo("quiz");
-  }
-
-  function handleAnswer(correct: boolean) {
-    const q = quizQueue[currentIndex];
-    if (!q) return;
-    setAnswers((prev) => [
-      ...prev,
-      { questionId: q.id, category: q.category, correct },
-    ]);
-  }
-
-  function handleNextQuestion() {
-    const nextIndex = currentIndex + 1;
-    if (nextIndex >= quizQueue.length) {
-      setHasResults(true);
-      goTo("results");
-    } else {
-      setCurrentIndex(nextIndex);
-    }
-  }
-
-  function handleReviewWeak() {
-    const wrongIds = new Set(
-      answers.filter((a) => !a.correct).map((a) => a.questionId),
-    );
-    const source = quiz?.questions ?? [];
-    const filtered = source.filter((q) => wrongIds.has(q.id));
-    setQuizQueue(filtered.length > 0 ? filtered : source);
-    setCurrentIndex(0);
-    setAnswers([]);
-    goTo("quiz");
-  }
-
-  function handleRestart() {
-    setPhotos([]);
-    setQuiz(null);
-    setQuizQueue([]);
-    setCurrentIndex(0);
-    setAnswers([]);
-    setHasResults(false);
-    setScreenStack([]);
-    setScreen("persona");
-  }
-
-  async function handleExtraCta() {
-    const persona = PERSONAS[personaKey];
-
-    if (persona.extraCtaAction === "pdf-worksheet") {
-      if (!quiz || exportingPdf) return;
-      setExportingPdf(true);
-      try {
-        const res = await fetch("/api/export-worksheet", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            quiz,
-            heading: `ドリルAI ワークシート ・ ${persona.title}`,
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => null);
-          throw new Error(data?.error ?? "PDFの生成に失敗しました。");
-        }
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "worksheet.pdf";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        showToast("PDFを書き出しました 📄");
-      } catch (err) {
-        showToast(
-          err instanceof Error ? err.message : "PDFの生成に失敗しました。",
-        );
-      } finally {
-        setExportingPdf(false);
-      }
-      return;
-    }
-
-    if (persona.extraCtaAction === "toast" && persona.extraCtaToast) {
-      showToast(persona.extraCtaToast);
-    }
-  }
-
-  function handleTabSelect(tab: TabKey) {
-    if (tab === "home") goTo("persona");
-    else if (tab === "scan") goTo("capture");
-    else if (tab === "results") {
-      if (hasResults) goTo("results");
-      else showToast("まだ結果がありません。まずは練習してみましょう");
-    }
-  }
-
-  const activeTab: TabKey | null =
-    screen === "persona"
-      ? "home"
-      : screen === "capture"
-        ? "scan"
-        : screen === "results"
-          ? "results"
-          : null;
-
-  const persona = PERSONAS[personaKey];
-  const currentQuestion = quizQueue[currentIndex];
+  const ActiveScreen = screen === "home" ? null : SCREEN_COMPONENTS[screen];
 
   return (
-    <div className="relative mx-auto flex h-dvh w-full max-w-lg flex-col">
-      <TopBar showBack={screen !== "persona"} onBack={goBack} />
-      <main className="flex flex-1 flex-col overflow-y-auto px-5 py-6">
-        {screen === "persona" && (
-          <PersonaScreen
-            onSelect={handleSelectPersona}
-            onDisabledSelect={handleDisabledPersona}
-          />
-        )}
+    <div className="relative flex h-dvh w-full flex-col">
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 opacity-50"
+        style={{ backgroundImage: BG_DECORATIONS }}
+      />
 
-        {screen === "intro" && (
-          <IntroScreen
-            persona={persona}
-            onStartCapture={() => goTo("capture")}
-            onStartCalc={() => goTo("kids-calc")}
-            onStartShiritori={() => goTo("kids-shiritori")}
-            onStartKotowaza={() => goTo("kids-kotowaza")}
-            onStartNazonazo={() => goTo("kids-nazonazo")}
-            onStartNakama={() => goTo("kids-nakama")}
-            onStartClock={() => goTo("kids-clock")}
-            onStartNakigoe={() => goTo("kids-nakigoe")}
-            onStartHantai={() => goTo("kids-hantai")}
-            onStartOkane={() => goTo("kids-okane")}
-          />
-        )}
+      <div className="relative z-10 mx-auto flex w-full max-w-lg flex-1 flex-col overflow-y-auto px-5 py-6">
+        {screen === "home" ? (
+          <>
+            <div className="flex items-center gap-2.5">
+              <div
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-[0_3px_0_rgba(35,52,87,0.12)]"
+                style={{
+                  background: "linear-gradient(150deg,#ffd166,#ff8fab 55%,#8ecae6)",
+                }}
+              >
+                🌸
+              </div>
+              <div>
+                <div className="text-[21px] leading-tight font-extrabold">
+                  {APP_NAME}
+                </div>
+                <div className="mt-0.5 text-[12px] font-extrabold text-ink-sub">
+                  {APP_TAGLINE}
+                </div>
+              </div>
+              <div className="flex-1" />
+              <StarChip count={stars} bumpToken={starBumpToken} />
+              <button
+                onClick={() => setSpeechEnabled((v) => !v)}
+                aria-label={
+                  speechEnabled
+                    ? "音声オン(タップでオフ)"
+                    : "音声オフ(タップでオン)"
+                }
+                className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-2xl bg-surface text-[21px] shadow-[0_3px_0_rgba(35,52,87,0.10)] transition active:translate-y-[3px] active:scale-[0.985]"
+              >
+                {speechEnabled ? "🔊" : "🔇"}
+              </button>
+            </div>
 
-        {screen === "kids-calc" && (
-          <ArithmeticScreen
-            speechEnabled={speechEnabled}
-            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
-          />
-        )}
+            <div className="mt-3.5 mb-1 text-[15px] font-bold text-ink-sub">
+              きょうは なにで あそぶ?
+            </div>
 
-        {screen === "kids-shiritori" && (
-          <ShiritoriScreen
-            speechEnabled={speechEnabled}
-            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
-          />
+            <div className="mt-2 grid grid-cols-2 gap-3.5">
+              {MODES.map((mode) => (
+                <MenuTile
+                  key={mode.key}
+                  mode={mode}
+                  onClick={() => setScreen(mode.key)}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          ActiveScreen && (
+            <ActiveScreen
+              speechEnabled={speechEnabled}
+              onToggleSpeech={() => setSpeechEnabled((v) => !v)}
+              onBack={() => setScreen("home")}
+              stars={stars}
+              starBumpToken={starBumpToken}
+              onCorrect={addStar}
+            />
+          )
         )}
+      </div>
 
-        {screen === "kids-kotowaza" && (
-          <KotowazaScreen
-            speechEnabled={speechEnabled}
-            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
-          />
-        )}
-
-        {screen === "kids-nazonazo" && (
-          <NazonazoScreen
-            speechEnabled={speechEnabled}
-            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
-          />
-        )}
-
-        {screen === "kids-nakama" && (
-          <NakamaScreen
-            speechEnabled={speechEnabled}
-            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
-          />
-        )}
-
-        {screen === "kids-clock" && (
-          <ClockScreen
-            speechEnabled={speechEnabled}
-            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
-          />
-        )}
-
-        {screen === "kids-nakigoe" && (
-          <NakigoeScreen
-            speechEnabled={speechEnabled}
-            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
-          />
-        )}
-
-        {screen === "kids-hantai" && (
-          <HantaiScreen
-            speechEnabled={speechEnabled}
-            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
-          />
-        )}
-
-        {screen === "kids-okane" && (
-          <OkaneScreen
-            speechEnabled={speechEnabled}
-            onToggleSpeech={() => setSpeechEnabled((v) => !v)}
-          />
-        )}
-
-        {screen === "capture" && (
-          <CaptureScreen
-            captureHint={persona.captureHint}
-            photos={photos}
-            onAddPhotos={handleAddPhotos}
-            onRemovePhoto={handleRemovePhoto}
-            onNext={handleStartGenerating}
-          />
-        )}
-
-        {screen === "generating" && (
-          <GeneratingScreen
-            key={generationRequestId}
-            status={generationStatus}
-            errorMessage={generationError ?? undefined}
-            onRetry={handleRetryGeneration}
-            onBack={() => goTo("capture", { push: false })}
-          />
-        )}
-
-        {screen === "quiz-intro" && quiz && (
-          <QuizIntroScreen
-            quiz={quiz}
-            title={persona.quizIntroTitleTemplate(quiz.questions.length)}
-            tag={persona.quizIntroTag}
-            onStart={handleStartQuiz}
-          />
-        )}
-
-        {screen === "quiz" && currentQuestion && (
-          <QuizScreen
-            key={currentQuestion.id}
-            question={currentQuestion}
-            index={currentIndex}
-            total={quizQueue.length}
-            onAnswer={handleAnswer}
-            onNext={handleNextQuestion}
-          />
-        )}
-
-        {screen === "results" && quiz && (
-          <ResultsScreen
-            quiz={quiz}
-            answers={answers}
-            extraCta={persona.extraCta}
-            extraCtaPending={exportingPdf}
-            onExtraCta={handleExtraCta}
-            onReviewWeak={handleReviewWeak}
-            onRestart={handleRestart}
-          />
-        )}
-      </main>
-      <FooterTabBar active={activeTab} onSelect={handleTabSelect} />
       <Toast message={toast} />
     </div>
   );

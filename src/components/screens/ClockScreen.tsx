@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ChoiceButton from "@/components/kids/ChoiceButton";
+import FeedbackBanner from "@/components/kids/FeedbackBanner";
+import GameLayout from "@/components/kids/GameLayout";
+import HintButton from "@/components/kids/HintButton";
+import NextButton from "@/components/kids/NextButton";
+import QuestionCard from "@/components/kids/QuestionCard";
+import type { ModeScreenProps } from "@/components/kids/modes";
 import { CLOCK_QUESTIONS } from "@/lib/kids/kids-quiz-data2";
 import { pickUnusedIndex } from "@/lib/kids/question-pool";
 import { cancelSpeech, speak } from "@/lib/kids/speech";
-
-interface ClockScreenProps {
-  speechEnabled: boolean;
-  onToggleSpeech: () => void;
-}
 
 type Level = 1 | 2 | 3 | 4;
 const LEVELS: Level[] = [1, 2, 3, 4];
@@ -75,7 +77,7 @@ function AnalogClock({ hour, minute }: { hour: number; minute: number }) {
         y1={outer.y}
         x2={inner.x}
         y2={inner.y}
-        stroke={major ? "var(--gold)" : "var(--fg-faint)"}
+        stroke={major ? "var(--c-toke)" : "var(--ink-sub)"}
         strokeWidth={major ? 3 : 1}
         strokeLinecap="round"
       />
@@ -93,8 +95,8 @@ function AnalogClock({ hour, minute }: { hour: number; minute: number }) {
         textAnchor="middle"
         dominantBaseline="middle"
         fontSize={18}
-        fontWeight={700}
-        fill="var(--text-primary)"
+        fontWeight={800}
+        fill="var(--ink)"
       >
         {n}
       </text>
@@ -113,8 +115,8 @@ function AnalogClock({ hour, minute }: { hour: number; minute: number }) {
         cx={CENTER}
         cy={CENTER}
         r={FACE_R}
-        fill="var(--surface-1)"
-        stroke="var(--border)"
+        fill="var(--surface)"
+        stroke="#dbe6f5"
         strokeWidth={3}
       />
       {ticks}
@@ -124,7 +126,7 @@ function AnalogClock({ hour, minute }: { hour: number; minute: number }) {
         y1={CENTER}
         x2={hourTip.x}
         y2={hourTip.y}
-        stroke="var(--text-primary)"
+        stroke="var(--ink)"
         strokeWidth={7}
         strokeLinecap="round"
       />
@@ -133,11 +135,11 @@ function AnalogClock({ hour, minute }: { hour: number; minute: number }) {
         y1={CENTER}
         x2={minuteTip.x}
         y2={minuteTip.y}
-        stroke="var(--gold-bright)"
+        stroke="var(--c-toke)"
         strokeWidth={4}
         strokeLinecap="round"
       />
-      <circle cx={CENTER} cy={CENTER} r={6} fill="var(--gold-bright)" />
+      <circle cx={CENTER} cy={CENTER} r={6} fill="var(--c-toke)" />
     </svg>
   );
 }
@@ -145,7 +147,11 @@ function AnalogClock({ hour, minute }: { hour: number; minute: number }) {
 export default function ClockScreen({
   speechEnabled,
   onToggleSpeech,
-}: ClockScreenProps) {
+  onBack,
+  stars,
+  starBumpToken,
+  onCorrect,
+}: ModeScreenProps) {
   const levelRef = useRef<Level>(1);
   const usedByLevelRef = useRef<Record<Level, Set<number>>>({
     1: new Set(),
@@ -166,7 +172,6 @@ export default function ClockScreen({
   const [answered, setAnswered] = useState(false);
   const [wasCorrect, setWasCorrect] = useState(false);
   const [hintUsed, setHintUsed] = useState(false);
-  const [correctCount, setCorrectCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
@@ -202,7 +207,9 @@ export default function ClockScreen({
     setAnswered(true);
     setWasCorrect(correct);
     setTotalCount((n) => n + 1);
-    if (correct) setCorrectCount((n) => n + 1);
+    if (correct) {
+      onCorrect?.();
+    }
     say(
       correct
         ? `せいかい!${question.speech}`
@@ -225,92 +232,56 @@ export default function ClockScreen({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] font-bold tracking-[0.12em] text-gold uppercase">
-          とけいの よみかた
+    <GameLayout
+      title="とけい"
+      onBack={onBack}
+      stars={stars}
+      starBumpToken={starBumpToken}
+      speechEnabled={speechEnabled}
+      onToggleSpeech={onToggleSpeech}
+      progress={Math.min(totalCount, 10) / 10}
+    >
+      <QuestionCard label="いま なんじ?">
+        <div className="flex justify-center">
+          <AnalogClock hour={question.hour} minute={question.minute} />
         </div>
-        <button
-          onClick={onToggleSpeech}
-          aria-label={
-            speechEnabled ? "音声オン(タップでオフ)" : "音声オフ(タップでオン)"
-          }
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface-1 text-lg active:scale-95"
-        >
-          {speechEnabled ? "🔊" : "🔇"}
-        </button>
-      </div>
-
-      <div className="text-center text-xs text-fg-faint">
-        せいかい {correctCount}もん / {totalCount}もん
-      </div>
-
-      <div className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-surface-1 py-6">
-        <AnalogClock hour={question.hour} minute={question.minute} />
-        <div className="text-[13px] font-bold text-fg-soft">いま なんじ?</div>
-      </div>
+      </QuestionCard>
 
       {hintUsed && !answered && (
-        <div className="rounded-2xl border-[1.5px] border-gold-wash-2 bg-gold-wash px-[17px] py-[15px] text-center text-[14px] font-bold text-gold-bright">
-          💡 {question.hint}
-        </div>
+        <FeedbackBanner kind="hint">💡 {question.hint}</FeedbackBanner>
       )}
 
       <div className="flex flex-col gap-2.5">
         {question.choices.map((choice, idx) => {
           const isSelected = selected === idx;
           const isAnswerIdx = idx === question.correctIndex;
-          let stateClass = "border-border bg-surface-1";
-          if (answered && isAnswerIdx) {
-            stateClass = "border-good bg-good-bg";
-          } else if (answered && isSelected && !isAnswerIdx) {
-            stateClass = "border-critical bg-critical-bg";
-          }
+          let state: "neutral" | "correct" | "wrong" = "neutral";
+          if (answered && isAnswerIdx) state = "correct";
+          else if (answered && isSelected && !isAnswerIdx) state = "wrong";
           return (
-            <button
+            <ChoiceButton
               key={idx}
+              index={idx}
               disabled={answered}
+              state={state}
               onClick={() => pickChoice(idx)}
-              className={[
-                "rounded-2xl border-[1.5px] px-4 py-[15px] text-center text-[16px] font-bold text-fg tabular-nums active:scale-[0.99] disabled:opacity-90",
-                stateClass,
-              ].join(" ")}
             >
               {choice}
-            </button>
+            </ChoiceButton>
           );
         })}
       </div>
 
       {answered && (
-        <div
-          className={[
-            "rounded-2xl px-[17px] py-[15px] text-center text-[15px] font-bold",
-            wasCorrect ? "bg-good-bg text-good" : "bg-critical-bg text-critical",
-          ].join(" ")}
-        >
-          {wasCorrect ? "◯ せいかい!" : "✕ おしい!"}
-        </div>
+        <FeedbackBanner kind={wasCorrect ? "correct" : "incorrect"}>
+          {wasCorrect ? "🎉 せいかい!" : "✕ ざんねん! もういちど"}
+        </FeedbackBanner>
       )}
 
-      {!answered && !hintUsed && (
-        <button
-          onClick={showHint}
-          className="rounded-2xl border-[1.5px] border-gold-wash-2 px-5 py-3.5 text-[14px] font-bold text-gold-bright active:scale-[0.98]"
-        >
-          💡 ヒントを見る
-        </button>
-      )}
+      {!answered && !hintUsed && <HintButton onClick={showHint} />}
 
       <div className="flex-1" />
-      {answered && (
-        <button
-          onClick={nextQuestion}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-gold-bright to-[#b8903c] px-5 py-4 text-[15.5px] font-bold text-[#231803] transition active:scale-[0.98]"
-        >
-          つぎのもんだいへ
-        </button>
-      )}
-    </div>
+      {answered && <NextButton onClick={nextQuestion} />}
+    </GameLayout>
   );
 }

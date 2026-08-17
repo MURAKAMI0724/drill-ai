@@ -1,21 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ChoiceButton from "@/components/kids/ChoiceButton";
+import FeedbackBanner from "@/components/kids/FeedbackBanner";
+import GameLayout from "@/components/kids/GameLayout";
+import NextButton from "@/components/kids/NextButton";
+import QuestionCard from "@/components/kids/QuestionCard";
+import type { ModeScreenProps } from "@/components/kids/modes";
 import { HANTAI_QUESTIONS } from "@/lib/kids/kids-quiz-data3";
 import { pickUnusedIndex } from "@/lib/kids/question-pool";
 import { cancelSpeech, speak } from "@/lib/kids/speech";
-
-interface HantaiScreenProps {
-  speechEnabled: boolean;
-  onToggleSpeech: () => void;
-}
 
 type FeedbackKind = "correct" | "incorrect" | null;
 
 export default function HantaiScreen({
   speechEnabled,
   onToggleSpeech,
-}: HantaiScreenProps) {
+  onBack,
+  stars,
+  starBumpToken,
+  onCorrect,
+}: ModeScreenProps) {
   const usedRef = useRef<Set<number>>(new Set());
   const speechEnabledRef = useRef(speechEnabled);
 
@@ -25,7 +30,6 @@ export default function HantaiScreen({
   const [answered, setAnswered] = useState(false);
   const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>(null);
   const [feedbackText, setFeedbackText] = useState("");
-  const [correctCount, setCorrectCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
@@ -64,7 +68,7 @@ export default function HantaiScreen({
       setFeedbackKind("correct");
       setFeedbackText(text);
       setTotalCount((n) => n + 1);
-      setCorrectCount((n) => n + 1);
+      onCorrect?.();
       say(text);
     } else {
       const text = "ざんねん!もういちど";
@@ -82,74 +86,46 @@ export default function HantaiScreen({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] font-bold tracking-[0.12em] text-gold uppercase">
-          はんたいことば
+    <GameLayout
+      title="はんたい"
+      onBack={onBack}
+      stars={stars}
+      starBumpToken={starBumpToken}
+      speechEnabled={speechEnabled}
+      onToggleSpeech={onToggleSpeech}
+      progress={Math.min(totalCount, 10) / 10}
+    >
+      <QuestionCard>
+        <div className="text-[22px] leading-relaxed font-extrabold text-ink">
+          {question.prompt}
         </div>
-        <button
-          onClick={onToggleSpeech}
-          aria-label={
-            speechEnabled ? "音声オン(タップでオフ)" : "音声オフ(タップでオン)"
-          }
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface-1 text-lg active:scale-95"
-        >
-          {speechEnabled ? "🔊" : "🔇"}
-        </button>
-      </div>
-
-      <div className="text-center text-xs text-fg-faint">
-        せいかい {correctCount}もん / {totalCount}もん
-      </div>
-
-      <div className="rounded-2xl border border-border bg-surface-1 px-5 py-6 text-center text-[19px] leading-relaxed font-bold">
-        {question.prompt}
-      </div>
+      </QuestionCard>
 
       <div className="flex flex-col gap-2.5">
         {question.choices.map((choice, idx) => {
-          const isCorrectIdx = answered && idx === question.correctIndex;
-          const stateClass = isCorrectIdx
-            ? "border-good bg-good-bg"
-            : "border-border bg-surface-1";
+          const state = answered && idx === question.correctIndex ? "correct" : "neutral";
           return (
-            <button
+            <ChoiceButton
               key={idx}
+              index={idx}
               disabled={answered}
+              state={state}
               onClick={() => pickChoice(idx)}
-              className={[
-                "rounded-2xl border-[1.5px] px-4 py-[15px] text-center text-[16px] font-bold text-fg active:scale-[0.99] disabled:opacity-90",
-                stateClass,
-              ].join(" ")}
             >
               {choice}
-            </button>
+            </ChoiceButton>
           );
         })}
       </div>
 
       {feedbackKind && (
-        <div
-          className={[
-            "rounded-2xl px-[17px] py-[15px] text-center text-[15px] font-bold",
-            feedbackKind === "correct"
-              ? "bg-good-bg text-good"
-              : "bg-critical-bg text-critical",
-          ].join(" ")}
-        >
-          {feedbackText}
-        </div>
+        <FeedbackBanner kind={feedbackKind}>
+          {feedbackKind === "correct" ? `🎉 ${feedbackText}` : `✕ ${feedbackText}`}
+        </FeedbackBanner>
       )}
 
       <div className="flex-1" />
-      {answered && (
-        <button
-          onClick={nextQuestion}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-gold-bright to-[#b8903c] px-5 py-4 text-[15.5px] font-bold text-[#231803] transition active:scale-[0.98]"
-        >
-          つぎのもんだいへ
-        </button>
-      )}
-    </div>
+      {answered && <NextButton onClick={nextQuestion} />}
+    </GameLayout>
   );
 }

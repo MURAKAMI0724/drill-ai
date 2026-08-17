@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import FeedbackBanner from "@/components/kids/FeedbackBanner";
+import GameLayout from "@/components/kids/GameLayout";
+import NextButton from "@/components/kids/NextButton";
+import QuestionCard from "@/components/kids/QuestionCard";
+import type { ModeScreenProps } from "@/components/kids/modes";
 import {
   generateArithmeticProblem,
   problemToSpeechParts,
@@ -8,11 +13,6 @@ import {
 } from "@/lib/kids/arithmetic";
 import { numberToJapaneseWords } from "@/lib/kids/japanese-numbers";
 import { speak, speakParts } from "@/lib/kids/speech";
-
-interface ArithmeticScreenProps {
-  speechEnabled: boolean;
-  onToggleSpeech: () => void;
-}
 
 const KEYPAD_ROWS = [
   ["1", "2", "3"],
@@ -24,14 +24,17 @@ const KEYPAD_ROWS = [
 export default function ArithmeticScreen({
   speechEnabled,
   onToggleSpeech,
-}: ArithmeticScreenProps) {
+  onBack,
+  stars,
+  starBumpToken,
+  onCorrect,
+}: ModeScreenProps) {
   const [problem, setProblem] = useState<ArithmeticProblem>(() =>
     generateArithmeticProblem(),
   );
   const [answer, setAnswer] = useState("");
   const [answered, setAnswered] = useState(false);
   const [wasCorrect, setWasCorrect] = useState(false);
-  const [correctCount, setCorrectCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
   const speechEnabledRef = useRef(speechEnabled);
@@ -70,7 +73,9 @@ export default function ArithmeticScreen({
     setAnswered(true);
     setWasCorrect(correct);
     setTotalCount((n) => n + 1);
-    if (correct) setCorrectCount((n) => n + 1);
+    if (correct) {
+      onCorrect?.();
+    }
     speak(
       correct
         ? "せいかい!"
@@ -86,42 +91,31 @@ export default function ArithmeticScreen({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] font-bold tracking-[0.12em] text-gold uppercase">
-          さんすう れんしゅう
-        </div>
-        <button
-          onClick={onToggleSpeech}
-          aria-label={speechEnabled ? "音声オン(タップでオフ)" : "音声オフ(タップでオン)"}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface-1 text-lg active:scale-95"
-        >
-          {speechEnabled ? "🔊" : "🔇"}
-        </button>
-      </div>
-
-      <div className="text-center text-xs text-fg-faint">
-        せいかい {correctCount}もん / {totalCount}もん
-      </div>
-
-      <div className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-surface-1 py-8">
-        <div className="text-[34px] font-bold tabular-nums">
+    <GameLayout
+      title="さんすう"
+      onBack={onBack}
+      stars={stars}
+      starBumpToken={starBumpToken}
+      speechEnabled={speechEnabled}
+      onToggleSpeech={onToggleSpeech}
+      progress={Math.min(totalCount, 10) / 10}
+    >
+      <QuestionCard>
+        <div className="text-[36px] font-extrabold text-ink tabular-nums">
           {problem.a} {problem.op} {problem.b} = ?
         </div>
-        <div className="h-9 min-w-16 rounded-xl bg-gold-wash px-4 text-center text-[26px] font-bold tabular-nums text-gold-bright">
-          {answer || " "}
+        <div
+          className="mt-3 inline-flex h-12 min-w-16 items-center justify-center rounded-2xl px-4 text-[28px] font-extrabold text-ink tabular-nums"
+          style={{ background: "var(--t-calc)" }}
+        >
+          {answer || " "}
         </div>
-      </div>
+      </QuestionCard>
 
       {answered && (
-        <div
-          className={[
-            "rounded-2xl px-[17px] py-[15px] text-center text-[15px] font-bold",
-            wasCorrect ? "bg-good-bg text-good" : "bg-critical-bg text-critical",
-          ].join(" ")}
-        >
-          {wasCorrect ? "◯ せいかい!" : `✕ おしい!こたえは ${problem.answer}`}
-        </div>
+        <FeedbackBanner kind={wasCorrect ? "correct" : "incorrect"}>
+          {wasCorrect ? "🎉 せいかい!" : `✕ ざんねん!こたえは ${problem.answer}`}
+        </FeedbackBanner>
       )}
 
       <div className="grid grid-cols-3 gap-2.5">
@@ -131,25 +125,21 @@ export default function ArithmeticScreen({
             disabled={answered && key !== "✓"}
             onClick={() => pressKey(key)}
             className={[
-              "rounded-2xl border-[1.5px] py-4 text-xl font-bold active:scale-95 disabled:opacity-35",
-              key === "✓"
-                ? "border-transparent bg-gradient-to-br from-gold-bright to-[#b8903c] text-[#231803]"
-                : "border-border bg-surface-1 text-fg",
+              "min-h-[60px] rounded-2xl text-2xl font-extrabold transition active:translate-y-[2px] active:scale-95 disabled:opacity-35",
+              key === "✓" ? "text-ink" : "bg-surface text-ink shadow-[0_3px_0_rgba(35,52,87,0.08)]",
             ].join(" ")}
+            style={
+              key === "✓"
+                ? { background: "linear-gradient(90deg,#ffd166,#ff8fab)" }
+                : undefined
+            }
           >
             {key}
           </button>
         ))}
       </div>
 
-      {answered && (
-        <button
-          onClick={nextProblem}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-gold-bright to-[#b8903c] px-5 py-4 text-[15.5px] font-bold text-[#231803] transition active:scale-[0.98]"
-        >
-          つぎのもんだいへ
-        </button>
-      )}
-    </div>
+      {answered && <NextButton onClick={nextProblem} />}
+    </GameLayout>
   );
 }

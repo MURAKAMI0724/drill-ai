@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>こどもアプリ デザイン案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* ---- そら(背景) ---- */
+  --sky-top:#bfe9fb;
+  --sky-bottom:#e8f7ff;
+  --surface:#ffffff;
+
+  /* ---- もじ(すべて AA 4.5:1 以上を実測ずみ) ---- */
+  --ink:#233457;        /* 白の上 12.35:1 / そらの上 9.57:1 */
+  --ink-sub:#4a5a78;    /* 白の上  6.94:1 / そらの上 5.38:1 */
+
+  /* ---- せいかい・ざんねん ---- */
+  --good:#127a41;       /* 5.40:1 */
+  --bad:#c62f27;        /* 5.47:1 */
+
+  /* ---- モードごとの アクセント原色(装飾専用) ---- */
+  --c-calc:#f97316;   --t-calc:#feebde;
+  --c-siri:#12a5a0;   --t-siri:#def2f2;
+  --c-koto:#7c5cd6;   --t-koto:#ede8f9;
+  --c-nazo:#e94f8a;   --t-nazo:#fce6ef;
+  --c-naka:#e0930a;   --t-naka:#fbf0dd;
+  --c-toke:#2f7fd4;   --t-toke:#e2edf9;
+  --c-naki:#2f9e56;   --t-naki:#e2f1e7;
+  --c-hant:#e04a52;   --t-hant:#fbe6e7;
+  --c-okan:#b8860b;   --t-okan:#f5eedd;
+
+  --radius-tile:28px;
+  --radius-btn:22px;
+  --shadow-tile:0 4px 0 rgba(35,52,87,.10), 0 10px 24px rgba(35,52,87,.10);
+  --shadow-press:0 1px 0 rgba(35,52,87,.10), 0 4px 10px rgba(35,52,87,.10);
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  margin:0; padding:32px 16px 64px;
+  font-family:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Yu Gothic",system-ui,sans-serif;
+  color:var(--ink);
+  background:#eef7fb;
+  display:flex; flex-wrap:wrap; gap:36px; justify-content:center; align-items:flex-start;
+}
+
+.note{width:100%;max-width:1000px;font-size:13px;color:#5a6b8a;line-height:1.8;
+  background:#fff;border-radius:16px;padding:16px 20px;box-shadow:0 2px 10px rgba(35,52,87,.08)}
+.note b{color:var(--ink)}
+
+/* ============ スマホ枠 ============ */
+.phone{
+  width:390px; min-height:760px; border-radius:40px; overflow:hidden;
+  background:linear-gradient(180deg,var(--sky-top) 0%, var(--sky-bottom) 55%, #f4fbff 100%);
+  box-shadow:0 18px 50px rgba(35,52,87,.22);
+  position:relative; display:flex; flex-direction:column;
+}
+/* そらに うかぶ おはな(背景装飾・うっすら) */
+.phone::before{
+  content:""; position:absolute; inset:0; pointer-events:none; opacity:.5;
+  background-image:
+    radial-gradient(circle at 12% 8%, #ffffff88 0 9px, transparent 10px),
+    radial-gradient(circle at 86% 14%, #ffffff70 0 12px, transparent 13px),
+    radial-gradient(circle at 22% 34%, #ffffff55 0 7px, transparent 8px),
+    radial-gradient(circle at 92% 46%, #ffffff66 0 10px, transparent 11px),
+    radial-gradient(circle at 8% 62%, #ffffff55 0 8px, transparent 9px),
+    radial-gradient(circle at 74% 78%, #ffffff55 0 11px, transparent 12px);
+}
+.screen{position:relative;z-index:1;display:flex;flex-direction:column;height:100%}
+
+/* ============ ヘッダー ============ */
+.topbar{
+  display:flex; align-items:center; gap:10px;
+  padding:18px 18px 12px;
+}
+.logo{
+  width:46px;height:46px;border-radius:16px;flex:none;
+  background:linear-gradient(150deg,#ffd166,#ff8fab 55%,#8ecae6);
+  display:grid;place-items:center;font-size:24px;
+  box-shadow:0 3px 0 rgba(35,52,87,.12);
+}
+.title{font-weight:800;font-size:21px;letter-spacing:.02em;line-height:1.15}
+.subtitle{font-size:12px;color:var(--ink-sub);font-weight:700;margin-top:2px}
+.spacer{flex:1}
+.chip{
+  display:flex;align-items:center;gap:5px;
+  background:#fff;border-radius:999px;padding:8px 13px;font-weight:800;font-size:15px;
+  box-shadow:0 2px 0 rgba(35,52,87,.10);
+}
+.iconbtn{
+  width:46px;height:46px;border-radius:16px;border:none;background:#fff;
+  font-size:21px;display:grid;place-items:center;cursor:pointer;
+  box-shadow:0 3px 0 rgba(35,52,87,.10);
+}
+
+.greet{padding:4px 20px 14px;font-size:15px;font-weight:700;color:var(--ink-sub)}
+
+/* ============ メニュータイル ============ */
+.grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:14px;
+  padding:0 18px 28px;
+}
+.tile{
+  border:none;cursor:pointer;text-align:left;
+  border-radius:var(--radius-tile);
+  padding:16px 14px 14px;
+  min-height:132px;
+  display:flex;flex-direction:column;gap:9px;
+  box-shadow:var(--shadow-tile);
+  transition:transform .12s ease, box-shadow .12s ease;
+  font-family:inherit;color:var(--ink);
+}
+.tile:active{transform:translateY(3px) scale(.985);box-shadow:var(--shadow-press)}
+.tile .bubble{
+  width:56px;height:56px;border-radius:20px;display:grid;place-items:center;
+  font-size:30px;line-height:1;flex:none;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.10);
+}
+.tile .label{font-weight:800;font-size:18px;line-height:1.25}
+.tile .desc{font-size:12px;font-weight:700;color:var(--ink-sub);line-height:1.4}
+
+.t-calc{background:var(--t-calc)} .t-calc .bubble{background:var(--c-calc)}
+.t-siri{background:var(--t-siri)} .t-siri .bubble{background:var(--c-siri)}
+.t-koto{background:var(--t-koto)} .t-koto .bubble{background:var(--c-koto)}
+.t-nazo{background:var(--t-nazo)} .t-nazo .bubble{background:var(--c-nazo)}
+.t-naka{background:var(--t-naka)} .t-naka .bubble{background:var(--c-naka)}
+.t-toke{background:var(--t-toke)} .t-toke .bubble{background:var(--c-toke)}
+.t-naki{background:var(--t-naki)} .t-naki .bubble{background:var(--c-naki)}
+.t-hant{background:var(--t-hant)} .t-hant .bubble{background:var(--c-hant)}
+.t-okan{background:var(--t-okan)} .t-okan .bubble{background:var(--c-okan)}
+
+/* ============ もんだい画面 ============ */
+.qhead{display:flex;align-items:center;gap:10px;padding:16px 18px 6px}
+.backbtn{
+  width:46px;height:46px;border-radius:16px;border:none;background:#fff;font-size:22px;
+  display:grid;place-items:center;cursor:pointer;box-shadow:0 3px 0 rgba(35,52,87,.10);
+}
+.qtitle{font-weight:800;font-size:18px}
+.progress{
+  margin:10px 18px 0;height:14px;border-radius:999px;background:#ffffffcc;overflow:hidden;
+  box-shadow:inset 0 2px 4px rgba(35,52,87,.10);
+}
+.progress > i{display:block;height:100%;width:45%;border-radius:999px;
+  background:linear-gradient(90deg,#ffd166,#ff8fab)}
+
+.qcard{
+  margin:16px 18px 0;background:var(--surface);border-radius:30px;padding:26px 20px;
+  box-shadow:0 4px 0 rgba(35,52,87,.08), 0 12px 28px rgba(35,52,87,.12);
+  text-align:center;
+}
+.qlabel{font-size:13px;font-weight:800;color:var(--ink-sub);margin-bottom:10px}
+.qtext{font-size:27px;font-weight:800;line-height:1.5}
+
+.choices{display:flex;flex-direction:column;gap:12px;padding:18px 18px 0}
+.choice{
+  border:3px solid #ffffff; background:#fff; color:var(--ink);
+  border-radius:var(--radius-btn); padding:18px 18px; font-size:20px; font-weight:800;
+  font-family:inherit; text-align:left; cursor:pointer; min-height:64px;
+  display:flex; align-items:center; gap:12px;
+  box-shadow:0 4px 0 rgba(35,52,87,.10), 0 8px 18px rgba(35,52,87,.08);
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+.choice:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(35,52,87,.10)}
+.choice .num{
+  width:34px;height:34px;border-radius:12px;flex:none;display:grid;place-items:center;
+  background:#eef3fb;font-size:16px;font-weight:800;color:var(--ink-sub);
+}
+.choice.correct{border-color:var(--good);background:#eaf7ef}
+.choice.correct .num{background:var(--good);color:#fff}
+.choice.wrong{border-color:var(--bad);background:#fdeceb}
+
+.feedback{
+  margin:18px 18px 0;border-radius:24px;padding:16px 18px;text-align:center;
+  background:#eaf7ef;color:var(--good);font-weight:800;font-size:20px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.hintbtn{
+  margin:14px 18px 24px;border:none;border-radius:var(--radius-btn);
+  background:#fff8dc;color:#7a5c00;font-weight:800;font-size:17px;padding:16px;
+  width:calc(100% - 36px);cursor:pointer;font-family:inherit;min-height:60px;
+  box-shadow:0 4px 0 rgba(35,52,87,.10);
+}
+
+.cap{width:100%;max-width:1000px;text-align:center;font-size:13px;color:#5a6b8a;font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="note">
+  <b>こどもアプリ ― デザイン案</b><br>
+  もじ色・背景色の くみあわせは すべて WCAG AA(コントラスト比 4.5:1)を 実測で クリアしています。
+  ビビッドな色は「絵文字のうしろの まる」など<b>装飾だけ</b>に使い、文字は つねに 濃紺 × うすい背景。
+  こうすると <b>カラフルなのに 読みやすい</b> 画面に なります。
+  フォントは 丸ゴシックの <b>M PLUS Rounded 1c</b>(Google Fonts・日本語対応)。
+</div>
+
+<!-- ============ ホーム ============ -->
+<div class="phone"><div class="screen">
+  <div class="topbar">
+    <div class="logo">🌸</div>
+    <div>
+      <div class="title">こどもアプリ</div>
+      <div class="subtitle">あそんで まなぼう</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="chip">⭐ 24</div>
+    <button class="iconbtn">🔊</button>
+  </div>
+
+  <div class="greet">きょうは なにで あそぶ?</div>
+
+  <div class="grid">
+    <button class="tile t-calc"><div class="bubble">🔢</div>
+      <div class="label">さんすう</div><div class="desc">たしざん・ひきざん</div></button>
+    <button class="tile t-siri"><div class="bubble">🎤</div>
+      <div class="label">しりとり</div><div class="desc">AIと たいけつ</div></button>
+    <button class="tile t-nazo"><div class="bubble">❓</div>
+      <div class="label">なぞなぞ</div><div class="desc">こえで こたえよう</div></button>
+    <button class="tile t-naka"><div class="bubble">🔍</div>
+      <div class="label">なかまはずれ</div><div class="desc">ちがうのは どれ?</div></button>
+    <button class="tile t-toke"><div class="bubble">🕐</div>
+      <div class="label">とけい</div><div class="desc">いま なんじ?</div></button>
+    <button class="tile t-naki"><div class="bubble">🐾</div>
+      <div class="label">なきごえ</div><div class="desc">だれの こえ?</div></button>
+    <button class="tile t-hant"><div class="bubble">🔁</div>
+      <div class="label">はんたい</div><div class="desc">はんたいの ことば</div></button>
+    <button class="tile t-okan"><div class="bubble">💰</div>
+      <div class="label">おかね</div><div class="desc">ぜんぶで いくら?</div></button>
+    <button class="tile t-koto"><div class="bubble">📖</div>
+      <div class="label">ことわざ</div><div class="desc">いみを あてよう</div></button>
+  </div>
+</div></div>
+
+<!-- ============ もんだい ============ -->
+<div class="phone"><div class="screen">
+  <div class="qhead">
+    <button class="backbtn">←</button>
+    <div class="qtitle">とけい</div>
+    <div class="spacer"></div>
+    <div class="chip">⭐ 3</div>
+    <button class="iconbtn">🔊</button>
+  </div>
+  <div class="progress"><i></i></div>
+
+  <div class="qcard">
+    <div class="qlabel">いま なんじ?</div>
+    <svg viewBox="0 0 200 200" width="190" height="190" aria-label="とけい">
+      <circle cx="100" cy="100" r="94" fill="#fff" stroke="#dbe6f5" stroke-width="4"/>
+      <circle cx="100" cy="100" r="86" fill="#fbfdff"/>
+      <g stroke="#8fa4c4" stroke-linecap="round">
+        <line x1="100" y1="16" x2="100" y2="30" stroke-width="5"/>
+        <line x1="184" y1="100" x2="170" y2="100" stroke-width="5"/>
+        <line x1="100" y1="184" x2="100" y2="170" stroke-width="5"/>
+        <line x1="16" y1="100" x2="30" y2="100" stroke-width="5"/>
+        <line x1="142" y1="27" x2="136" y2="38" stroke-width="4"/>
+        <line x1="173" y1="58" x2="162" y2="64" stroke-width="4"/>
+        <line x1="173" y1="142" x2="162" y2="136" stroke-width="4"/>
+        <line x1="142" y1="173" x2="136" y2="162" stroke-width="4"/>
+        <line x1="58" y1="173" x2="64" y2="162" stroke-width="4"/>
+        <line x1="27" y1="142" x2="38" y2="136" stroke-width="4"/>
+        <line x1="27" y1="58" x2="38" y2="64" stroke-width="4"/>
+        <line x1="58" y1="27" x2="64" y2="38" stroke-width="4"/>
+      </g>
+      <g font-family="inherit" font-size="20" font-weight="800" fill="#233457" text-anchor="middle">
+        <text x="100" y="48">12</text><text x="152" y="107">3</text>
+        <text x="100" y="166">6</text><text x="48" y="107">9</text>
+      </g>
+      <!-- 3じ45ふん: 短針は 3 と 4 の あいだ(112.5°)、長針は 9 の いち(270°) -->
+      <line x1="100" y1="100" x2="100" y2="46" stroke="#2f7fd4" stroke-width="5"
+            stroke-linecap="round" transform="rotate(270 100 100)"/>
+      <line x1="100" y1="100" x2="100" y2="62" stroke="#233457" stroke-width="9"
+            stroke-linecap="round" transform="rotate(112.5 100 100)"/>
+      <circle cx="100" cy="100" r="8" fill="#233457"/>
+    </svg>
+  </div>
+
+  <div class="choices">
+    <button class="choice"><span class="num">1</span>4じ45ふん</button>
+    <button class="choice correct"><span class="num">2</span>3じ45ふん</button>
+    <button class="choice"><span class="num">3</span>3じ15ふん</button>
+  </div>
+
+  <div class="feedback">🎉 せいかい!</div>
+
+  <button class="hintbtn">💡 ヒントを みる</button>
+</div></div>
+
+<div class="cap">
+  ← ホーム(メニューを ずらっと 表示) / もんだい画面 →<br>
+  タップすると ボタンが すこし しずむ アニメーションが つきます。
+</div>
+
+</body>
+</html>

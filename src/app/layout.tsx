@@ -1,38 +1,31 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Noto_Serif_JP } from "next/font/google";
+import { M_PLUS_Rounded_1c } from "next/font/google";
+import { APP_NAME } from "@/lib/constants";
 import "./globals.css";
 
-const cormorant = Cormorant_Garamond({
-  variable: "--font-cormorant",
+const mplus = M_PLUS_Rounded_1c({
+  variable: "--font-mplus",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const notoSerifJP = Noto_Serif_JP({
-  variable: "--font-noto-serif-jp",
-  subsets: ["latin"],
-  weight: ["600", "700"],
+  weight: ["400", "700", "800"],
 });
 
 export const metadata: Metadata = {
-  title: "ドリルAI — 撮るだけで、テストができる。",
+  title: `${APP_NAME} ― あそんで まなぼう`,
   description:
-    "教科書・ノート・マニュアルを撮影するだけで、AIが内容を解析し個人に最適化されたテスト・問題集を自動生成します。",
+    "さんすう・しりとり・なぞなぞ・とけいなど、9つのあそびで たのしく まなべる こども向けアプリ",
+  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0d0b08",
+  themeColor: "#bfe9fb",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="ja"
-      className={`${cormorant.variable} ${notoSerifJP.variable} h-full antialiased`}
-    >
-      <body className="min-h-full bg-bg text-text-primary">{children}</body>
+    <html lang="ja" className={`${mplus.variable} h-full antialiased`}>
+      <body className="min-h-full text-ink">{children}</body>
     </html>
   );
 }

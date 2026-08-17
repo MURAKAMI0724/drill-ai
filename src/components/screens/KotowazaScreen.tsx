@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ChoiceButton from "@/components/kids/ChoiceButton";
+import FeedbackBanner from "@/components/kids/FeedbackBanner";
+import GameLayout from "@/components/kids/GameLayout";
+import NextButton from "@/components/kids/NextButton";
+import QuestionCard from "@/components/kids/QuestionCard";
+import type { ModeScreenProps } from "@/components/kids/modes";
 import { KOTOWAZA_QUESTIONS } from "@/lib/kids/kids-quiz-data";
 import { pickUnusedIndex } from "@/lib/kids/question-pool";
 import { speak } from "@/lib/kids/speech";
 
-interface KotowazaScreenProps {
-  speechEnabled: boolean;
-  onToggleSpeech: () => void;
-}
-
 export default function KotowazaScreen({
   speechEnabled,
   onToggleSpeech,
-}: KotowazaScreenProps) {
+  onBack,
+  stars,
+  starBumpToken,
+  onCorrect,
+}: ModeScreenProps) {
   const usedRef = useRef<Set<number>>(new Set());
   const speechEnabledRef = useRef(speechEnabled);
 
@@ -23,7 +28,6 @@ export default function KotowazaScreen({
   const [selected, setSelected] = useState<number | null>(null);
   const [answered, setAnswered] = useState(false);
   const [wasCorrect, setWasCorrect] = useState(false);
-  const [correctCount, setCorrectCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
@@ -52,7 +56,9 @@ export default function KotowazaScreen({
     setAnswered(true);
     setWasCorrect(correct);
     setTotalCount((n) => n + 1);
-    if (correct) setCorrectCount((n) => n + 1);
+    if (correct) {
+      onCorrect?.();
+    }
     speak(correct ? "せいかい!" : "おしい!", speechEnabledRef.current);
   }
 
@@ -66,80 +72,50 @@ export default function KotowazaScreen({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] font-bold tracking-[0.12em] text-gold uppercase">
-          ことわざクイズ
+    <GameLayout
+      title="ことわざ"
+      onBack={onBack}
+      stars={stars}
+      starBumpToken={starBumpToken}
+      speechEnabled={speechEnabled}
+      onToggleSpeech={onToggleSpeech}
+      progress={Math.min(totalCount, 10) / 10}
+    >
+      <QuestionCard label="どんな いみ かな?">
+        <div className="text-[22px] leading-relaxed font-extrabold text-ink">
+          {question.proverb}
         </div>
-        <button
-          onClick={onToggleSpeech}
-          aria-label={
-            speechEnabled ? "音声オン(タップでオフ)" : "音声オフ(タップでオン)"
-          }
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface-1 text-lg active:scale-95"
-        >
-          {speechEnabled ? "🔊" : "🔇"}
-        </button>
-      </div>
-
-      <div className="text-center text-xs text-fg-faint">
-        せいかい {correctCount}もん / {totalCount}もん
-      </div>
-
-      <div className="rounded-2xl border border-border bg-surface-1 px-5 py-6 text-center text-[19px] leading-relaxed font-bold">
-        {question.proverb}
-      </div>
-
-      <div className="text-center text-[13px] text-fg-faint">
-        どんな いみ かな?
-      </div>
+      </QuestionCard>
 
       <div className="flex flex-col gap-2.5">
         {question.choices.map((choice, idx) => {
-          const isSelected = selected === idx;
           const isAnswerIdx = idx === question.correctIndex;
-          let stateClass = "border-border bg-surface-1";
-          if (answered && isAnswerIdx) {
-            stateClass = "border-good bg-good-bg";
-          } else if (answered && isSelected && !isAnswerIdx) {
-            stateClass = "border-critical bg-critical-bg";
-          }
+          const isSelected = selected === idx;
+          let state: "neutral" | "correct" | "wrong" = "neutral";
+          if (answered && isAnswerIdx) state = "correct";
+          else if (answered && isSelected && !isAnswerIdx) state = "wrong";
           return (
-            <button
+            <ChoiceButton
               key={idx}
+              index={idx}
               disabled={answered}
+              state={state}
               onClick={() => pickChoice(idx)}
-              className={[
-                "rounded-2xl border-[1.5px] px-4 py-[15px] text-left text-[14px] leading-relaxed text-fg active:scale-[0.99] disabled:opacity-90",
-                stateClass,
-              ].join(" ")}
             >
               {choice}
-            </button>
+            </ChoiceButton>
           );
         })}
       </div>
 
       {answered && (
-        <div
-          className={[
-            "rounded-2xl px-[17px] py-[15px] text-center text-[15px] font-bold",
-            wasCorrect ? "bg-good-bg text-good" : "bg-critical-bg text-critical",
-          ].join(" ")}
-        >
-          {wasCorrect ? "◯ せいかい!" : "✕ おしい!"}
-        </div>
+        <FeedbackBanner kind={wasCorrect ? "correct" : "incorrect"}>
+          {wasCorrect ? "🎉 せいかい!" : "✕ ざんねん! もういちど"}
+        </FeedbackBanner>
       )}
 
       <div className="flex-1" />
-      {answered && (
-        <button
-          onClick={nextQuestion}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-gold-bright to-[#b8903c] px-5 py-4 text-[15.5px] font-bold text-[#231803] transition active:scale-[0.98]"
-        >
-          つぎのもんだいへ
-        </button>
-      )}
-    </div>
+      {answered && <NextButton onClick={nextQuestion} />}
+    </GameLayout>
   );
 }

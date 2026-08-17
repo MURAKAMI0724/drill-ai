@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import GameLayout from "@/components/kids/GameLayout";
+import type { ModeScreenProps } from "@/components/kids/modes";
 import { KANJI_TO_HIRAGANA } from "@/lib/kids/shiritori-data";
 import {
   decideAiMove,
@@ -16,11 +18,6 @@ import { cancelSpeech, speak } from "@/lib/kids/speech";
 
 const KID_TURN_SECONDS = 20;
 
-interface ShiritoriScreenProps {
-  speechEnabled: boolean;
-  onToggleSpeech: () => void;
-}
-
 type BubbleKind = "ai" | "kid" | "system" | "thinking";
 interface Bubble {
   id: number;
@@ -35,17 +32,21 @@ interface EndInfo {
 }
 
 const BUBBLE_CLASSES: Record<BubbleKind, string> = {
-  ai: "self-start bg-surface-1 border border-border text-fg rounded-bl-sm",
-  kid: "self-end bg-gradient-to-br from-gold-bright to-[#b8903c] text-[#231803] rounded-br-sm font-semibold",
+  ai: "self-start bg-surface text-ink rounded-bl-sm shadow-[0_2px_0_rgba(35,52,87,0.08)]",
+  kid: "self-end text-ink rounded-br-sm font-bold shadow-[0_2px_0_rgba(35,52,87,0.10)]",
   system:
-    "self-center bg-transparent text-fg-faint text-xs text-center px-2 py-1",
-  thinking: "self-start bg-surface-1 border border-border text-fg-faint rounded-bl-sm",
+    "self-center bg-transparent text-ink-sub text-xs text-center px-2 py-1",
+  thinking:
+    "self-start bg-surface text-ink-sub rounded-bl-sm shadow-[0_2px_0_rgba(35,52,87,0.08)]",
 };
 
 export default function ShiritoriScreen({
   speechEnabled,
   onToggleSpeech,
-}: ShiritoriScreenProps) {
+  onBack,
+  stars,
+  starBumpToken,
+}: ModeScreenProps) {
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [needKana, setNeedKana] = useState("");
   const [inputValue, setInputValue] = useState("");
@@ -55,6 +56,9 @@ export default function ShiritoriScreen({
   const [micListening, setMicListening] = useState(false);
   const [micStatus, setMicStatus] = useState("");
   const [converting, setConverting] = useState(false);
+  // Mirrors chainRef.current.length for rendering only — reading a ref
+  // during render isn't safe, so the progress bar needs this as real state.
+  const [chainLength, setChainLength] = useState(0);
   const [micSupported] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -85,6 +89,11 @@ export default function ShiritoriScreen({
 
   function say(text: string) {
     speak(text, speechEnabledRef.current);
+  }
+
+  function pushChain(entry: { word: string; who: "ai" | "kid" }) {
+    chainRef.current.push(entry);
+    setChainLength(chainRef.current.length);
   }
 
   function addTimeout(fn: () => void, ms: number) {
@@ -140,7 +149,7 @@ export default function ShiritoriScreen({
 
   function aiSay(word: string) {
     usedRef.current.add(word);
-    chainRef.current.push({ word, who: "ai" });
+    pushChain({ word, who: "ai" });
     pushBubble("ai", `🤖 ${word}`);
     say(word);
     const req = lastKana(word);
@@ -201,7 +210,7 @@ export default function ShiritoriScreen({
     if (lastKana(word) === "ん") {
       stopKidTimer();
       usedRef.current.add(word);
-      chainRef.current.push({ word, who: "kid" });
+      pushChain({ word, who: "kid" });
       const msg = "「ん」が ついちゃった!";
       pushBubble("system", msg);
       say(msg);
@@ -211,7 +220,7 @@ export default function ShiritoriScreen({
 
     stopKidTimer();
     usedRef.current.add(word);
-    chainRef.current.push({ word, who: "kid" });
+    pushChain({ word, who: "kid" });
     const requiredKana = lastKana(word);
 
     pushBubble("thinking", "…");
@@ -225,7 +234,7 @@ export default function ShiritoriScreen({
 
       if (move.type === "trap") {
         usedRef.current.add(move.word);
-        chainRef.current.push({ word: move.word, who: "ai" });
+        pushChain({ word: move.word, who: "ai" });
         pushBubble("ai", `🤖 ${move.word}`);
         say(move.word);
         addTimeout(() => {
@@ -252,6 +261,7 @@ export default function ShiritoriScreen({
   function startGame() {
     usedRef.current = new Set();
     chainRef.current = [];
+    setChainLength(0);
     requiredKanaRef.current = null;
     gameOverRef.current = false;
     setGameOver(false);
@@ -398,103 +408,112 @@ export default function ShiritoriScreen({
   }
 
   return (
-    <div className="relative flex flex-1 flex-col gap-3">
-      {secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 10 && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-          <div className="text-[72px] font-black text-critical drop-shadow-[0_2px_12px_rgba(0,0,0,0.35)] tabular-nums">
-            {secondsLeft}
+    <GameLayout
+      title="しりとり"
+      onBack={onBack}
+      stars={stars}
+      starBumpToken={starBumpToken}
+      speechEnabled={speechEnabled}
+      onToggleSpeech={onToggleSpeech}
+      progress={Math.min(chainLength, 10) / 10}
+    >
+      <div className="relative flex min-h-0 flex-1 flex-col gap-3">
+        {secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 10 && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+            <div className="text-[72px] font-black text-bad drop-shadow-[0_2px_12px_rgba(0,0,0,0.25)] tabular-nums">
+              {secondsLeft}
+            </div>
           </div>
-        </div>
-      )}
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] font-bold tracking-[0.12em] text-gold uppercase">
-          AIしりとり
-        </div>
-        <button
-          onClick={onToggleSpeech}
-          aria-label={speechEnabled ? "音声オン(タップでオフ)" : "音声オフ(タップでオン)"}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface-1 text-lg active:scale-95"
+        )}
+
+        <div
+          ref={logRef}
+          className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-[24px] bg-white/60 p-3"
         >
-          {speechEnabled ? "🔊" : "🔇"}
-        </button>
-      </div>
-
-      <div
-        ref={logRef}
-        className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-2xl border border-border bg-surface-1/50 p-3"
-      >
-        {bubbles.map((b) => (
-          <div
-            key={b.id}
-            className={[
-              "max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[14px] leading-snug",
-              BUBBLE_CLASSES[b.kind],
-            ].join(" ")}
-          >
-            {b.text}
-          </div>
-        ))}
-      </div>
-
-      {needKana && !gameOver && !converting && (
-        <div className="text-center text-xs text-fg-faint">{needKana}</div>
-      )}
-      {converting && (
-        <div className="text-center text-xs text-gold">
-          🔄 へんかんちゅう…
-        </div>
-      )}
-      {micStatus && (
-        <div className="text-center text-xs text-critical">{micStatus}</div>
-      )}
-
-      {!gameOver && (
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={inputValue}
-            disabled={converting}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="ひらがなで にゅうりょく"
-            className="flex-1 rounded-2xl border-[1.5px] border-border bg-surface-1 px-4 py-3.5 text-base text-fg outline-none focus:border-gold disabled:opacity-50"
-          />
-          {micSupported && (
-            <button
-              onClick={toggleMic}
-              disabled={converting}
-              aria-label={micListening ? "きいています" : "タップして はなす"}
+          {bubbles.map((b) => (
+            <div
+              key={b.id}
               className={[
-                "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-surface-1 text-lg active:scale-95 disabled:opacity-50",
-                micListening ? "animate-mic-pulse border-critical" : "",
+                "max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[15px] leading-snug",
+                BUBBLE_CLASSES[b.kind],
               ].join(" ")}
+              style={
+                b.kind === "kid"
+                  ? { background: "linear-gradient(90deg,#ffd166,#ff8fab)" }
+                  : undefined
+              }
             >
-              {micListening ? "🔴" : "🎤"}
-            </button>
-          )}
-          <button
-            onClick={handleSend}
-            disabled={!inputValue.trim() || converting}
-            className="flex h-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-gold-bright to-[#b8903c] px-4 text-sm font-bold text-[#231803] active:scale-95 disabled:opacity-35"
-          >
-            おくる
-          </button>
+              {b.text}
+            </div>
+          ))}
         </div>
-      )}
 
-      {gameOver && endInfo && (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-gold-wash-2 bg-gold-wash px-5 py-6 text-center">
-          <div className="text-4xl">{endInfo.emoji}</div>
-          <div className="text-[17px] font-bold">{endInfo.title}</div>
-          <div className="text-[13.5px] text-fg-soft">{endInfo.body}</div>
-          <button
-            onClick={startGame}
-            className="mt-2 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-gold-bright to-[#b8903c] px-6 py-3.5 text-[15px] font-bold text-[#231803] active:scale-[0.98]"
-          >
-            もういちど あそぶ
-          </button>
-        </div>
-      )}
-    </div>
+        {needKana && !gameOver && !converting && (
+          <div className="text-center text-[13px] font-bold text-ink-sub">
+            {needKana}
+          </div>
+        )}
+        {converting && (
+          <div className="text-center text-[13px] font-bold text-ink-sub">
+            🔄 へんかんちゅう…
+          </div>
+        )}
+        {micStatus && (
+          <div className="text-center text-[13px] font-bold text-bad">
+            {micStatus}
+          </div>
+        )}
+
+        {!gameOver && (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={inputValue}
+              disabled={converting}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              placeholder="ひらがなで にゅうりょく"
+              className="min-h-[60px] w-0 min-w-0 flex-1 rounded-2xl border-[3px] border-white bg-surface px-4 text-[17px] font-bold text-ink shadow-[0_2px_0_rgba(35,52,87,0.08)] outline-none focus:border-[var(--c-siri)] disabled:opacity-50"
+            />
+            {micSupported && (
+              <button
+                onClick={toggleMic}
+                disabled={converting}
+                aria-label={micListening ? "きいています" : "タップして はなす"}
+                className={[
+                  "flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-full bg-surface text-2xl shadow-[0_2px_0_rgba(35,52,87,0.08)] transition active:scale-95 disabled:opacity-50",
+                  micListening ? "animate-mic-pulse" : "",
+                ].join(" ")}
+              >
+                {micListening ? "🔴" : "🎤"}
+              </button>
+            )}
+            <button
+              onClick={handleSend}
+              disabled={!inputValue.trim() || converting}
+              className="flex h-[60px] shrink-0 items-center justify-center rounded-2xl px-5 text-base font-extrabold text-ink shadow-[0_3px_0_rgba(35,52,87,0.10)] transition active:scale-95 disabled:opacity-35"
+              style={{ background: "linear-gradient(90deg,#ffd166,#ff8fab)" }}
+            >
+              おくる
+            </button>
+          </div>
+        )}
+
+        {gameOver && endInfo && (
+          <div className="flex flex-col items-center gap-2 rounded-[24px] bg-surface px-5 py-6 text-center shadow-[0_4px_0_rgba(35,52,87,0.08),0_12px_28px_rgba(35,52,87,0.12)]">
+            <div className="text-4xl">{endInfo.emoji}</div>
+            <div className="text-[18px] font-extrabold text-ink">{endInfo.title}</div>
+            <div className="text-[14px] font-bold text-ink-sub">{endInfo.body}</div>
+            <button
+              onClick={startGame}
+              className="mt-2 flex min-h-[60px] items-center justify-center gap-2 rounded-2xl px-6 text-[16px] font-extrabold text-ink shadow-[0_3px_0_rgba(35,52,87,0.10)] transition active:scale-[0.98]"
+              style={{ background: "linear-gradient(90deg,#ffd166,#ff8fab)" }}
+            >
+              もういちど あそぶ
+            </button>
+          </div>
+        )}
+      </div>
+    </GameLayout>
   );
 }

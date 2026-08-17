@@ -9,8 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.117.1",
-    "@react-pdf/renderer": "^4.6.1",
     "kuromoji": "^0.1.2",
     "kuroshiro": "^1.2.0",
     "kuroshiro-analyzer-kuromoji": "^1.1.0",
